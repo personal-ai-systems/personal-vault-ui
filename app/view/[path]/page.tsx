@@ -26,7 +26,7 @@ export default function MarkdownViewerPage() {
     const fetchFile = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/files/${encodeURIComponent(path)}`);
+        const response = await fetch(`/api/files/${encodeURIComponent(path || "")}`);
         
         if (!response.ok) {
           throw new Error(`Failed to load file: ${response.statusText}`);
