@@ -14,7 +14,7 @@ import {
   MoreVertical
 } from 'lucide-react';
 
-export default function TopAppBar() {
+export default function TopAppBar(_props: { currentView?: string; onViewChange?: (view: any) => void }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (

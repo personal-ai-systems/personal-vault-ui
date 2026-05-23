@@ -125,7 +125,7 @@ export default function MarkdownViewerPage() {
               <span>Size: {formatFileSize(file.size)}</span>
               <span>Modified: {formatDate(file.modified)}</span>
               <a
-                href={`/api/files/${encodeURIComponent(path)}`}
+                href={`/api/files/${encodeURIComponent(path || '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:underline"

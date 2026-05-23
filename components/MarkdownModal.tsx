@@ -135,7 +135,6 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
               <div className="h-full overflow-auto p-6">
                 <MarkdownRenderer 
                   content={content.content}
-                  frontmatter={content.frontmatter}
                 />
               </div>
             ) : (
