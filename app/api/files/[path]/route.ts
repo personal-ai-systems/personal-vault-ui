@@ -3,7 +3,16 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 
-const VAULT_PATH = path.join(process.env.HOME || '', 'personal-vault', 'raw');
+const VAULT_PATH = path.join(process.env.HOME || '', 'personal-vault');
+
+function safeJoinVault(relativePath: string) {
+  const normalized = path.normalize(relativePath || '').replace(/^(\.\.(\/|\\|$))+/, '');
+  const fullPath = path.join(VAULT_PATH, normalized);
+  if (!fullPath.startsWith(VAULT_PATH)) {
+    throw new Error('Access denied');
+  }
+  return { fullPath, decodedPath: path.relative(VAULT_PATH, fullPath) };
+}
 
 export async function GET(
   request: NextRequest,
@@ -13,15 +22,7 @@ export async function GET(
     const { path: filePath } = await params;
     
     // Decode URL components and join them
-    const decodedPath = decodeURIComponent(filePath);
-    const fullPath = path.join(VAULT_PATH, decodedPath);
-    
-    // Security check: ensure the path is within the vault
-    if (!fullPath.startsWith(VAULT_PATH)) {
-      return NextResponse.json({ 
-        error: 'Access denied' 
-      }, { status: 403 });
-    }
+    const { fullPath, decodedPath } = safeJoinVault(decodeURIComponent(filePath));
 
     // Check if file exists
     try {

@@ -38,9 +38,7 @@ export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     try {
       const params = new URLSearchParams();
       if (path) {
-        const parts = path.split('/').filter(p => p);
-        if (parts.length >= 1) params.set('year', parts[0]);
-        if (parts.length >= 2) params.set('month', parts[1]);
+        params.set('path', path);
       }
       
       const response = await fetch(`/api/files?${params}`);
@@ -99,6 +97,13 @@ export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   };
 
   const handleBreadcrumbClick = (index: number) => {
+    if (index < 0) {
+      setCurrentPath('');
+      fetchDirectory('');
+      setSelectedFile(null);
+      setFileContent(null);
+      return;
+    }
     const parts = currentPath.split('/').filter(p => p);
     const newPath = parts.slice(0, index + 1).join('/');
     setCurrentPath(newPath);

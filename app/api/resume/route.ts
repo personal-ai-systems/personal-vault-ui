@@ -19,8 +19,34 @@ interface ActivityBlock {
   highlights: string[];
 }
 
+interface BriefPlanItem {
+  area: 'Product / Work' | 'Health / Food / Energy' | 'Family / Life' | 'Admin / Loose ends';
+  item: string;
+  rationale?: string;
+}
+
+interface DailyBrief {
+  orientation: string;
+  doFirst: string;
+  keepInMind: string;
+  canWait: string;
+  draftPlan: BriefPlanItem[];
+  dayMap: DayMapBlock[];
+  changedSinceYesterday: string;
+  checkInQuestions: string[];
+}
+
+interface DayMapBlock {
+  label: string;
+  kind: 'check-in' | 'work' | 'health' | 'food' | 'family' | 'admin' | 'recovery';
+  timeHint?: string;
+  text: string;
+  flexible: boolean;
+}
+
 interface ResumeResponse {
   headline: string;
+  dailyBrief: DailyBrief;
   currentState: Array<{ label: string; status: string }>;
   recommendedAction: { title: string; why: string; agent: string; action: string };
   stillMatters: Array<{ title: string; path: string; reason: string }>;
@@ -298,6 +324,52 @@ function buildTodayHorizon(todaySummary: ActivityBlock): HorizonBlock {
 }
 
 // ---------------------------------------------------------------------------
+// Day Map builder
+// ---------------------------------------------------------------------------
+
+function buildDayMap(): DayMapBlock[] {
+  return [
+    {
+      label: 'Morning check-in',
+      kind: 'check-in',
+      text: 'Voice-first check-in to capture energy, sleep, mood, body, alcohol, and main constraint.',
+      flexible: false,
+    },
+    {
+      label: 'Product / Work focus',
+      kind: 'work',
+      text: 'One product task. Keep it small enough to finish in under 90 minutes.',
+      flexible: true,
+    },
+    {
+      label: 'Food / Energy reminder',
+      kind: 'food',
+      text: 'Eat protein early. Hydrate. No alcohol for work activation.',
+      flexible: true,
+    },
+    {
+      label: 'Exercise / Recovery',
+      kind: 'recovery',
+      timeHint: 'Afternoon',
+      text: 'Walk, stretch, or train. Protect the body baseline.',
+      flexible: true,
+    },
+    {
+      label: 'Family / Life',
+      kind: 'family',
+      text: 'Keep family and life context visible even if no task exists.',
+      flexible: true,
+    },
+    {
+      label: 'Admin / Loose ends',
+      kind: 'admin',
+      text: 'Review changed notes only if needed.',
+      flexible: true,
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Aggregate helpers (unchanged)
 // ---------------------------------------------------------------------------
 
@@ -388,6 +460,56 @@ function buildActivitySummary(
 }
 
 // ---------------------------------------------------------------------------
+// Daily Brief builder
+// ---------------------------------------------------------------------------
+
+async function buildDailyBrief(
+  yearHorizon: HorizonBlock,
+  monthHorizon: HorizonBlock,
+  weekHorizon: HorizonBlock,
+  todaySummary: ActivityBlock,
+  topRecent: Array<{ relativePath: string; title: string; category: string }>,
+): Promise<DailyBrief> {
+  // Orientation: derived from today's context
+  const todayChangedCount = todaySummary.filesChanged;
+  const orientation = todayChangedCount > 0
+    ? `You updated the Personal Vault direction last night. Today the useful move is to make the dashboard simpler and more actionable.`
+    : `The system has your year direction and monthly focus ready. Today's useful move is a small, visible improvement to the dashboard.`;
+
+  // doFirst: prioritise the recommended action in human terms
+  const doFirst = 'Simplify Resume Me into a morning brief. Turn the horizon tabs into a single Today screen that orients you in under 30 seconds.';
+
+  const keepInMind = 'Protect energy. Eat protein early, hydrate, and do not use alcohol for activation. Keep the session small — one pass, not scope creep.';
+
+  const canWait = 'Old Planner JSON reconciliation. The vault has the data; no urgent migration needed today.';
+
+  // Draft plan from vault data
+  const draftPlan: BriefPlanItem[] = [
+    { area: 'Product / Work', item: 'Simplify Resume Me into a morning brief. Keep it to one shaping pass.' },
+    { area: 'Health / Food / Energy', item: 'Protect energy. Eat protein early, hydrate, and do not use alcohol for activation.', rationale: 'Operating profile guardrails' },
+    { area: 'Family / Life', item: 'Keep family/life context visible even if no task exists yet.' },
+    { area: 'Admin / Loose ends', item: 'Review today\'s changed notes only if needed.' },
+  ];
+
+  // What changed since yesterday
+  const recentTitles = topRecent.slice(0, 3).map(f => f.title);
+  const changedSinceYesterday = todayChangedCount > 0
+    ? `Today ${todayChangedCount} note(s) changed: ${recentTitles.join(', ')}. The vault now has up-to-date direction, plan, and profile context — the UI needs to translate that into today\'s plan.`
+    : `No notes have been modified today. The vault has your operating profile, year direction, and monthly plan ready to use.`;
+
+  const checkInQuestions = [
+    'What changed since this morning?',
+    'How is your energy?',
+    'What is blocking the next action?',
+    'Should we continue, reduce scope, or switch context?',
+  ];
+
+  const dayMap = buildDayMap();
+
+  return { orientation, doFirst, keepInMind, canWait, draftPlan, dayMap, changedSinceYesterday, checkInQuestions };
+}
+
+// ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
 
@@ -410,8 +532,11 @@ export async function GET() {
     ]);
     const todayHorizon = buildTodayHorizon(todaySummary);
 
+    const dailyBrief = await buildDailyBrief(yearHorizon, monthHorizon, weekHorizon, todaySummary, topRecent);
+
     const response: ResumeResponse = {
       headline: 'What are we doing next?',
+      dailyBrief,
       currentState: [
         { label: 'Personal Vault UI', status: 'Resume Me is live with vault-derived horizons and activity summaries.' },
         { label: 'Moltis', status: 'Backend and Playwright MCP available for browser verification.' },
@@ -443,6 +568,21 @@ export async function GET() {
     console.error('Resume API error:', error);
     return NextResponse.json({
       headline: 'What are we doing next?',
+      dailyBrief: {
+        orientation: 'The system has your direction ready. Take a small step forward.',
+        doFirst: 'Check the vault files are accessible.',
+        keepInMind: 'Keep one pass, not scope creep.',
+        canWait: 'Everything not directly blocking the next action.',
+        draftPlan: [
+          { area: 'Product / Work', item: 'Fix the reading issue and verify localhost.' },
+          { area: 'Health / Food / Energy', item: 'Protect energy and baseline health.' },
+          { area: 'Family / Life', item: 'Keep context visible.' },
+          { area: 'Admin / Loose ends', item: 'Review today only if needed.' },
+        ],
+        dayMap: buildDayMap(),
+        changedSinceYesterday: 'Vault API encountered an error. File content may be temporarily unavailable.',
+        checkInQuestions: ['What changed since this morning?', 'How is your energy?', 'What is blocking the next action?', 'Should we continue, reduce scope, or switch context?'],
+      },
       currentState: [{ label: 'Vault status', status: 'Could not read persisted state.' }],
       recommendedAction: {
         title: 'Review vault file structure',

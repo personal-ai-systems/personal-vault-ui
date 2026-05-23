@@ -1,6 +1,4 @@
 'use client';
-
-import { useState } from 'react';
 import { 
   Menu, 
   Search, 
@@ -14,8 +12,14 @@ import {
   MoreVertical
 } from 'lucide-react';
 
-export default function TopAppBar(_props: { currentView?: string; onViewChange?: (view: any) => void }) {
-  const [searchQuery, setSearchQuery] = useState('');
+interface TopAppBarProps {
+  currentView?: string;
+  onViewChange?: (view: any) => void;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+}
+
+export default function TopAppBar({ searchQuery, onSearchQueryChange }: TopAppBarProps) {
 
   return (
     <header className="sticky top-0 z-40 bg-surface border-b border-border">
@@ -41,12 +45,13 @@ export default function TopAppBar(_props: { currentView?: string; onViewChange?:
               placeholder="Search in vault..."
               className="bg-transparent border-none outline-none w-full text-sm text-on-surface placeholder-on-surface-variant"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => onSearchQueryChange(e.target.value)}
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => onSearchQueryChange('')}
                 className="ml-2 p-0.5 rounded hover:bg-hover"
+                title="Clear search"
               >
                 <span className="text-xs text-on-surface-variant">✕</span>
               </button>
@@ -136,12 +141,13 @@ export default function TopAppBar(_props: { currentView?: string; onViewChange?:
             placeholder="Search in vault..."
             className="bg-transparent border-none outline-none w-full text-sm text-on-surface placeholder-on-surface-variant"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => onSearchQueryChange('')}
               className="ml-2 p-0.5 rounded hover:bg-hover"
+              title="Clear search"
             >
               <span className="text-xs text-on-surface-variant">✕</span>
             </button>

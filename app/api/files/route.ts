@@ -2,21 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 
-const VAULT_PATH = path.join(process.env.HOME || '', 'personal-vault', 'raw');
+const VAULT_PATH = path.join(process.env.HOME || '', 'personal-vault');
+
+function safeJoinVault(relativePath: string) {
+  const normalized = path.normalize(relativePath || '').replace(/^(\.\.(\/|\\|$))+/, '');
+  const targetPath = path.join(VAULT_PATH, normalized);
+  if (!targetPath.startsWith(VAULT_PATH)) {
+    throw new Error('Access denied');
+  }
+  return { targetPath, relativePath: path.relative(VAULT_PATH, targetPath) };
+}
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
+    const requestedPath = searchParams.get('path') || '';
     const year = searchParams.get('year');
     const month = searchParams.get('month');
 
     let targetPath = VAULT_PATH;
+    let currentPath = '';
     
-    if (year) {
+    if (requestedPath) {
+      const safe = safeJoinVault(requestedPath);
+      targetPath = safe.targetPath;
+      currentPath = safe.relativePath;
+    } else if (year) {
       targetPath = path.join(targetPath, year);
       if (month) {
         targetPath = path.join(targetPath, month);
       }
+      currentPath = path.relative(VAULT_PATH, targetPath);
     }
 
     // Check if path exists
@@ -26,7 +42,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ 
         files: [], 
         directories: [],
-        currentPath: targetPath,
+        currentPath,
         exists: false 
       });
     }
@@ -34,7 +50,7 @@ export async function GET(request: NextRequest) {
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
     
     const files = entries
-      .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+      .filter(entry => entry.isFile() && !entry.name.startsWith('.'))
       .map(entry => ({
         name: entry.name,
         path: path.join(targetPath, entry.name),
@@ -44,7 +60,7 @@ export async function GET(request: NextRequest) {
       }));
 
     const directories = entries
-      .filter(entry => entry.isDirectory())
+      .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
       .map(entry => ({
         name: entry.name,
         path: path.join(targetPath, entry.name),
@@ -71,7 +87,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       files, 
       directories,
-      currentPath: targetPath,
+      currentPath,
       vaultRoot: VAULT_PATH,
       exists: true
     });

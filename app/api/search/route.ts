@@ -3,7 +3,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 
-const VAULT_PATH = path.join(process.env.HOME || '', 'personal-vault', 'raw');
+const VAULT_PATH = path.join(process.env.HOME || '', 'personal-vault');
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 async function getAllMarkdownFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
@@ -27,6 +31,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q')?.toLowerCase();
     const limit = parseInt(searchParams.get('limit') || '50');
+    const queryPattern = query ? new RegExp(escapeRegExp(query), 'g') : null;
 
     if (!query || query.trim() === '') {
       return NextResponse.json({ 
@@ -41,6 +46,9 @@ export async function GET(request: NextRequest) {
     const results: Array<{
       path: string;
       relativePath: string;
+      name: string;
+      size: number;
+      mtime: number;
       frontmatter: any;
       content: string;
       score: number;
@@ -52,6 +60,7 @@ export async function GET(request: NextRequest) {
         const content = await fs.readFile(filePath, 'utf-8');
         const { data: frontmatter, content: markdownContent } = matter(content);
         const relativePath = path.relative(VAULT_PATH, filePath);
+        const stats = await fs.stat(filePath);
 
         // Simple search scoring
         let score = 0;
@@ -71,7 +80,7 @@ export async function GET(request: NextRequest) {
           matches.push('content');
           
           // Count occurrences
-          const occurrences = (contentLower.match(new RegExp(query, 'g')) || []).length;
+          const occurrences = queryPattern ? (contentLower.match(queryPattern) || []).length : 0;
           score += Math.min(occurrences * 0.1, 2); // Max 2 points for frequency
         }
 
@@ -86,6 +95,9 @@ export async function GET(request: NextRequest) {
           results.push({
             path: filePath,
             relativePath,
+            name: path.basename(filePath),
+            size: stats.size,
+            mtime: stats.mtimeMs,
             frontmatter,
             content: markdownContent.substring(0, 500) + '...', // Preview
             score,
