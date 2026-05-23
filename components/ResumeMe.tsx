@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   FileText, Clock, ArrowRight, Target, RefreshCw,
   BookOpen, Sparkles, Zap, ChevronRight, Calendar,
-  Activity, Sunrise, Sun
+  Activity, Sunrise, Sun, ExternalLink
 } from 'lucide-react';
 import MarkdownModal from './MarkdownModal';
 
@@ -38,6 +38,7 @@ interface HorizonBlock {
   title: string;
   body: string;
   items: string[];
+  source?: { label: string; path: string };
 }
 
 interface ActivityBlock {
@@ -166,6 +167,26 @@ export default function ResumeMe() {
     }
   };
 
+  const handleSourceClick = async (source: { label: string; path: string }) => {
+    setContentLoading(true);
+    setSelectedFile({
+      name: source.path.split('/').pop() || '',
+      path: source.path,
+      relativePath: source.path,
+      size: 0,
+      mtime: Date.now(),
+    });
+    try {
+      const res = await fetch(`/api/content/${encodeURIComponent(source.path)}`);
+      const json = await res.json();
+      setFileContent(json);
+    } catch {
+      setFileContent(null);
+    } finally {
+      setContentLoading(false);
+    }
+  };
+
   const horizon = data?.horizons?.[activeHorizon];
 
   return (
@@ -245,6 +266,15 @@ export default function ResumeMe() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {horizon.source && (
+                      <button
+                        onClick={() => handleSourceClick(horizon.source!)}
+                        className="inline-flex items-center gap-1 text-xs text-on-surface-variant hover:text-primary transition-colors pt-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        {horizon.source.label}
+                      </button>
                     )}
                   </div>
                 </section>

@@ -9,6 +9,7 @@ interface HorizonBlock {
   title: string;
   body: string;
   items: string[];
+  source?: { label: string; path: string };
 }
 
 interface ActivityBlock {
@@ -29,12 +30,19 @@ interface ResumeResponse {
   updatedAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function getCategoryForPath(relativePath: string): string {
   if (relativePath.startsWith('raw/')) return 'raw';
   if (relativePath.startsWith('structured/projects/')) return 'project';
   if (relativePath.startsWith('structured/decisions/')) return 'decision';
   if (relativePath.startsWith('structured/facts/')) return 'fact';
   if (relativePath.startsWith('structured/summaries/')) return 'summary';
+  if (relativePath.startsWith('structured/profiles/')) return 'profile';
+  if (relativePath.startsWith('structured/strategies/')) return 'strategy';
+  if (relativePath.startsWith('structured/plans/')) return 'plan';
   if (relativePath.startsWith('indexes/')) return 'index';
   return 'other';
 }
@@ -48,6 +56,250 @@ function getLocalMidnightMs(): number {
 function get7DaysAgoMs(): number {
   return Date.now() - 7 * 24 * 60 * 60 * 1000;
 }
+
+function linesAfterHeading(content: string, heading: string, maxLines = 15): string[] {
+  const lines = content.split('\n');
+  let found = false;
+  const result: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match ## or ### headings (case-insensitive prefix)
+    if (!found && trimmed.replace(/^#+\s+/, '').toLowerCase().startsWith(heading.toLowerCase())) {
+      found = true;
+      continue;
+    }
+    if (found) {
+      if (trimmed.startsWith('#')) break;
+      if (trimmed) result.push(trimmed.replace(/^- /, '').trim());
+      if (result.length >= maxLines) break;
+    }
+  }
+  return result;
+}
+
+function extractListItemsAfterHeading(content: string, heading: string): string[] {
+  const lines = content.split('\n');
+  let found = false;
+  const items: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!found && trimmed.replace(/^#+\s+/, '').toLowerCase().startsWith(heading.toLowerCase())) {
+      found = true;
+      continue;
+    }
+    if (found) {
+      if (trimmed.startsWith('#')) break;
+      const bullet = trimmed.match(/^[-*]\s+(.+)/);
+      if (bullet) items.push(bullet[1]);
+      const numbered = trimmed.match(/^\d+\.\s+(.+)/);
+      if (numbered) items.push(numbered[1]);
+    }
+  }
+  return items;
+}
+
+function readFirstBodyLines(content: string): string {
+  return content
+    .split('\n')
+    .filter(l => l.trim() && !l.startsWith('#'))
+    .slice(0, 3)
+    .join(' ')
+    .substring(0, 250);
+}
+
+// ---------------------------------------------------------------------------
+// Horizon builders
+// ---------------------------------------------------------------------------
+
+async function buildYearHorizon(): Promise<HorizonBlock> {
+  const defaultBlock: HorizonBlock = {
+    title: 'Year direction',
+    body: 'Build a personal execution and memory system.',
+    items: [],
+  };
+
+  const dirPath = path.join(VAULT_ROOT, 'structured', 'strategies');
+  try {
+    const entries = await fsp.readdir(dirPath);
+    const file = entries.find(e => e.startsWith('2026') && e.endsWith('personal-direction.md'));
+    if (!file) return defaultBlock;
+    const content = await fsp.readFile(path.join(dirPath, file), 'utf-8');
+    const { data, content: body } = matter(content);
+
+    const bodyText = readFirstBodyLines(body);
+    const goals = extractListItemsAfterHeading(body, 'Year Goals');
+
+    return {
+      title: (data as any)?.title || 'Year direction',
+      body: bodyText || defaultBlock.body,
+      items: goals.length > 0 ? goals : extractListItemsAfterHeading(body, 'Durable Focus Areas'),
+      source: {
+        label: (data as any)?.title || file,
+        path: `structured/strategies/${file}`,
+      },
+    };
+  } catch {
+    return defaultBlock;
+  }
+}
+
+async function buildMonthHorizon(): Promise<HorizonBlock> {
+  const now = new Date();
+  const currentMonth = now.toLocaleString('en-US', { month: 'long', timeZone: 'Australia/Sydney' });
+  const currentYear = now.getFullYear(); // 2026
+
+  const defaultBlock: HorizonBlock = {
+    title: `Month focus — ${currentMonth} ${currentYear}`,
+    body: 'Stabilize the system before adding scope.',
+    items: [],
+  };
+
+  const planPath = path.join(VAULT_ROOT, 'structured', 'plans', '2026-05-24-2026-operating-plan.md');
+  try {
+    const content = await fsp.readFile(planPath, 'utf-8');
+    const { data, content: planBody } = matter(content);
+
+    // Find the monthly section for the current month
+    const monthHeading = linesAfterHeading(planBody, 'Monthly Direction', 30);
+    // Walk through monthly sections
+    const lines = planBody.split('\n');
+    let currentSection: string[] = [];
+    let foundSection: string[] = [];
+    let currentTheme = '';
+    let foundTheme = '';
+    let inTarget = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const sectionMatch = trimmed.match(/^###\s+(.+)/);
+      if (sectionMatch) {
+        // Check if this section is for the current month
+        if (sectionMatch[1].toLowerCase().startsWith(currentMonth.toLowerCase())) {
+          inTarget = true;
+          foundTheme = sectionMatch[1];
+          foundSection = [];
+          continue;
+        } else {
+          inTarget = false;
+        }
+      }
+      if (inTarget) {
+        if (trimmed.startsWith('#')) break;
+        if (trimmed) foundSection.push(trimmed);
+      }
+    }
+
+    if (foundSection.length > 0) {
+      const themeLine = foundTheme || `Direction for ${currentMonth}`;
+      const body = foundSection.slice(0, 2).join(' ').substring(0, 250);
+      const items = foundSection.slice(1).filter(l => l.startsWith('-')).map(l => l.replace(/^- /, '').trim());
+
+      return {
+        title: themeLine,
+        body: body || defaultBlock.body,
+        items: items.length > 0 ? items : [],
+        source: {
+          label: '2026 Operating Plan',
+          path: 'structured/plans/2026-05-24-2026-operating-plan.md',
+        },
+      };
+    }
+
+    // Fallback: read the current month section info from the headings
+    return {
+      ...defaultBlock,
+      source: {
+        label: '2026 Operating Plan',
+        path: 'structured/plans/2026-05-24-2026-operating-plan.md',
+      },
+    };
+  } catch {
+    return defaultBlock;
+  }
+}
+
+async function buildWeekHorizon(): Promise<HorizonBlock> {
+  const defaultBlock: HorizonBlock = {
+    title: 'Week vector',
+    body: 'Pick one product task, one health task, and one control task.',
+    items: [],
+  };
+
+  const planPath = path.join(VAULT_ROOT, 'structured', 'plans', '2026-05-24-2026-operating-plan.md');
+  const profilePath = path.join(VAULT_ROOT, 'structured', 'profiles', '2026-05-24-kirill-operating-profile.md');
+
+  const items: string[] = [];
+
+  try {
+    const planContent = await fsp.readFile(planPath, 'utf-8');
+    const { content: planBody } = matter(planContent);
+
+    const weeklyDefault = linesAfterHeading(planBody, 'Weekly Default', 5);
+    if (weeklyDefault.length > 0) {
+      items.push(...weeklyDefault);
+    }
+
+    // Also pick the current product bridge hints
+    const bridge = linesAfterHeading(planBody, 'Current Product Bridge', 8);
+    if (bridge.length > 0) {
+      items.push(...bridge);
+    }
+  } catch {
+    // fallback
+  }
+
+  try {
+    const profileContent = await fsp.readFile(profilePath, 'utf-8');
+    const { data: profileData } = matter(profileContent);
+
+    return {
+      title: 'Week vector',
+      body: items.length > 0 ? items.slice(0, 2).join('. ') : defaultBlock.body,
+      items: [
+        items.length > 0 ? items.slice(0, 1).join(' ') : 'One product task, one health task, one control task',
+        ...(items.slice(1, 4) || []),
+        'Use weekly review as the main execution loop',
+      ],
+      source: {
+        label: (profileData as any)?.title || 'Operating Plan & Profile',
+        path: 'structured/plans/2026-05-24-2026-operating-plan.md',
+      },
+    };
+  } catch {
+    return {
+      ...defaultBlock,
+      source: {
+        label: 'Operating Plan & Profile',
+        path: 'structured/plans/2026-05-24-2026-operating-plan.md',
+      },
+    };
+  }
+}
+
+function buildTodayHorizon(todaySummary: ActivityBlock): HorizonBlock {
+  const highlights = todaySummary.highlights;
+  const items: string[] = [];
+
+  if (highlights.length > 0) {
+    items.push(`Review today's changes: ${highlights.slice(0, 3).join(', ')}`);
+  } else {
+    items.push('Review recent changes in the vault');
+  }
+  items.push('Choose the next small implementation step');
+  items.push('Keep the session small and deterministic');
+
+  return {
+    title: 'Today vector',
+    body: highlights.length > 0
+      ? `${todaySummary.filesChanged} file(s) changed today.`
+      : 'Understand what changed and choose the next small implementation step.',
+    items,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate helpers (unchanged)
+// ---------------------------------------------------------------------------
 
 async function collectAllFiles() {
   const excluded = new Set(['config', 'exports', '.git']);
@@ -78,21 +330,9 @@ async function collectAllFiles() {
           const relativePath = path.relative(VAULT_ROOT, fullPath);
           const title =
             (data as any)?.title ||
-            entry.name
-              .replace(/\.md$/, '')
-              .replace(/^\d{4}-\d{2}-\d{2}-/, '')
-              .replace(/[-_]/g, ' ')
-              .replace(/\b\w/g, (c: string) => c.toUpperCase());
-          allFiles.push({
-            relativePath,
-            name: entry.name,
-            mtime: stats.mtimeMs,
-            title,
-            category: getCategoryForPath(relativePath),
-          });
-        } catch {
-          // skip
-        }
+            entry.name.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+          allFiles.push({ relativePath, name: entry.name, mtime: stats.mtimeMs, title, category: getCategoryForPath(relativePath) });
+        } catch { /* skip */ }
       }
     }
   }
@@ -119,16 +359,10 @@ async function collectStillMatters() {
           const reason = (data as any)?.description
             ? (data as any).description.substring(0, 100)
             : `Active project with ${imp}/10 priority.`;
-          items.push({
-            title: (data as any)?.title || entry.replace('.md', ''),
-            path: `structured/${dir}/${entry}`,
-            reason,
-          });
+          items.push({ title: (data as any)?.title || entry.replace('.md', ''), path: `structured/${dir}/${entry}`, reason });
         }
       }
-    } catch {
-      // skip
-    }
+    } catch { /* skip */ }
   }
   return items.slice(0, 3);
 }
@@ -140,34 +374,22 @@ function buildActivitySummary(
 ): ActivityBlock {
   const relevant = files.filter((f) => f.mtime >= sinceMs);
   const catCounts = new Map<string, number>();
-  for (const f of relevant) {
-    catCounts.set(f.category, (catCounts.get(f.category) || 0) + 1);
-  }
+  for (const f of relevant) catCounts.set(f.category, (catCounts.get(f.category) || 0) + 1);
 
   const catLabels: Record<string, string> = {
-    raw: 'raw logs',
-    project: 'project notes',
-    decision: 'decisions',
-    fact: 'facts',
-    summary: 'summaries',
-    index: 'indexes',
-    other: 'other',
+    raw: 'raw logs', project: 'project notes', decision: 'decisions', fact: 'facts',
+    summary: 'summaries', index: 'indexes', profile: 'profile updates', strategy: 'strategy notes', plan: 'plan updates', other: 'other',
   };
-  const catSummary = [...catCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([cat, count]) => `${count} ${catLabels[cat] || cat}`)
-    .join(', ');
-
+  const catSummary = [...catCounts.entries()].sort((a, b) => b[1] - a[1]).map(([cat, count]) => `${count} ${catLabels[cat] || cat}`).join(', ');
   const highlights = relevant.slice(0, 5).map((f) => f.title);
   const filesChanged = relevant.length;
-  const title = `${label}`;
-  const body =
-    filesChanged === 0
-      ? `No files changed ${label.toLowerCase()}.`
-      : `${filesChanged} file${filesChanged !== 1 ? 's' : ''} modified (${catSummary}).`;
-
-  return { title, body, filesChanged, highlights };
+  const body = filesChanged === 0 ? `No files changed ${label.toLowerCase()}.` : `${filesChanged} file${filesChanged !== 1 ? 's' : ''} modified (${catSummary}).`;
+  return { title: label, body, filesChanged, highlights };
 }
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
 
 export async function GET() {
   try {
@@ -181,63 +403,33 @@ export async function GET() {
     const todaySummary = buildActivitySummary(allFiles, midnightMs, 'Today');
     const weekSummary = buildActivitySummary(allFiles, weekAgoMs, 'This week');
 
+    const [yearHorizon, monthHorizon, weekHorizon] = await Promise.all([
+      buildYearHorizon(),
+      buildMonthHorizon(),
+      buildWeekHorizon(),
+    ]);
+    const todayHorizon = buildTodayHorizon(todaySummary);
+
     const response: ResumeResponse = {
       headline: 'What are we doing next?',
       currentState: [
-        { label: 'Personal Vault UI', status: 'Resume Me MVP is live, but currently too document-like.' },
-        { label: 'Moltis', status: 'Backend and Playwright MCP are available for agent/browser validation.' },
-        { label: 'Next milestone', status: 'Turn Resume Me into a structured executive brief before adding Context Builder.' },
+        { label: 'Personal Vault UI', status: 'Resume Me is live with vault-derived horizons and activity summaries.' },
+        { label: 'Moltis', status: 'Backend and Playwright MCP available for browser verification.' },
+        { label: 'Planner convergence', status: 'Old Planner JSON imported into vault as structured notes. Resume Me reads them directly.' },
       ],
       recommendedAction: {
-        title: 'Turn Resume Me into an executive brief',
-        why: 'The current screen dumps strategy notes instead of deciding the next useful action.',
-        agent: 'Personal Vault Coder / DeepSeek Coder',
-        action: 'Refactor ResumeMe view and API into structured cards.',
+        title: 'Test the vault-driven horizons',
+        why: 'Year, month, and week horizons now read from Personal Vault structured notes instead of hardcoded copy. Verify the content is accurate and useful.',
+        agent: 'Personal Vault Coder',
+        action: 'Navigate horizons on the Resume Me screen and confirm each matches its source file.',
       },
       stillMatters: topStill,
       recentChanges: topRecent,
       horizons: {
-        year: {
-          title: 'Year direction',
-          body: 'Build a personal execution and memory system that helps Kirill resume direction across AI tools, projects, and low-energy days.',
-          items: [
-            'Planner/product MVP — make the vault actionable daily',
-            'Personal execution system — reduce cognitive overhead',
-            'Focus and cognitive overload reduction — smaller surfaces, less noise',
-            'Alcohol control guardrails — automated check-ins',
-            'Health and energy baseline — track and trend',
-            'AI orchestration and business POC — surface agent decisions',
-          ],
-        },
-        month: {
-          title: 'Month focus',
-          body: 'Make Personal Vault usable as the daily surface, not just a markdown archive.',
-          items: [
-            'Stabilise Resume Me as the default landing view',
-            'Add Recent Summary with human-readable activity explanations',
-            'Prepare Context Builder entry point from Resume Me',
-            'Let the vault answer "what happened" without reading raw files',
-          ],
-        },
-        week: {
-          title: 'Week vector',
-          body: 'Stabilise Resume Me, Recent Changes, and Context Builder foundations.',
-          items: [
-            'Resume Me: time horizons and activity summaries are live',
-            'Recent Changes: file list is working, human summary layer added',
-            'Context Builder: plan entry point and wire to vault content',
-            'Test with real use: daily check-ins using the vault',
-          ],
-        },
-        today: {
-          title: 'Today vector',
-          body: 'Understand what changed and choose the next small implementation step.',
-          items: [
-            'Review today\'s file changes in Recent Summary',
-            'Choose a direction: refine UI, add a panel, or fix a gap',
-            'Keep the session small and deterministic — one feature pass at a time',
-          ],
-        },
+        year: yearHorizon,
+        month: monthHorizon,
+        week: weekHorizon,
+        today: todayHorizon,
       },
       activitySummary: {
         today: todaySummary,
@@ -254,7 +446,7 @@ export async function GET() {
       currentState: [{ label: 'Vault status', status: 'Could not read persisted state.' }],
       recommendedAction: {
         title: 'Review vault file structure',
-        why: 'The resume endpoint encountered an error and fell back to defaults.',
+        why: 'The resume endpoint encountered an error.',
         agent: 'Personal Vault Coder',
         action: 'Check file permissions and retry.',
       },
