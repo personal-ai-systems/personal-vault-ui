@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import {
   FileText, Clock, ArrowRight, Target, RefreshCw,
-  BookOpen, Sparkles, Zap, ChevronRight
+  BookOpen, Sparkles, Zap, ChevronRight, Calendar,
+  Activity, Sunrise, Sun
 } from 'lucide-react';
 import MarkdownModal from './MarkdownModal';
 
@@ -33,12 +34,27 @@ interface RecentFile {
   category: string;
 }
 
+interface HorizonBlock {
+  title: string;
+  body: string;
+  items: string[];
+}
+
+interface ActivityBlock {
+  title: string;
+  body: string;
+  filesChanged: number;
+  highlights: string[];
+}
+
 interface ResumeData {
   headline: string;
   currentState: StateItem[];
   recommendedAction: RecommendedAction;
   stillMatters: StillMattersItem[];
   recentChanges: RecentFile[];
+  horizons: Record<string, HorizonBlock>;
+  activitySummary: { today: ActivityBlock; week: ActivityBlock };
   updatedAt: string;
 }
 
@@ -50,6 +66,23 @@ interface FileItem {
   mtime: number;
 }
 
+const HORIZON_KEYS = ['today', 'week', 'month', 'year'] as const;
+type HorizonKey = (typeof HORIZON_KEYS)[number];
+
+const HORIZON_LABELS: Record<HorizonKey, string> = {
+  today: 'Today',
+  week: 'Week',
+  month: 'Month',
+  year: 'Year',
+};
+
+const HORIZON_ICONS: Record<HorizonKey, React.ReactNode> = {
+  today: <Sun className="w-3.5 h-3.5" />,
+  week: <Activity className="w-3.5 h-3.5" />,
+  month: <Calendar className="w-3.5 h-3.5" />,
+  year: <Calendar className="w-3.5 h-3.5" />,
+};
+
 export default function ResumeMe() {
   const [data, setData] = useState<ResumeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,6 +91,7 @@ export default function ResumeMe() {
   const [fileContent, setFileContent] = useState<any>(null);
   const [contentLoading, setContentLoading] = useState(false);
   const [continueFeedback, setContinueFeedback] = useState(false);
+  const [activeHorizon, setActiveHorizon] = useState<HorizonKey>('today');
 
   const fetchData = async () => {
     setLoading(true);
@@ -85,7 +119,7 @@ export default function ResumeMe() {
       path: file.relativePath,
       relativePath: file.relativePath,
       size: 0,
-      mtime: file.mtime
+      mtime: file.mtime,
     });
     try {
       const res = await fetch(`/api/content/${encodeURIComponent(file.relativePath)}`);
@@ -119,7 +153,7 @@ export default function ResumeMe() {
       path: item.path,
       relativePath: item.path,
       size: 0,
-      mtime: Date.now()
+      mtime: Date.now(),
     });
     try {
       const res = await fetch(`/api/content/${encodeURIComponent(item.path)}`);
@@ -132,6 +166,8 @@ export default function ResumeMe() {
     }
   };
 
+  const horizon = data?.horizons?.[activeHorizon];
+
   return (
     <div className="h-full overflow-auto" style={{ height: 'calc(100vh - 140px)' }}>
       {loading ? (
@@ -142,12 +178,14 @@ export default function ResumeMe() {
       ) : error ? (
         <div className="p-8 text-center">
           <p className="text-red-500">{error}</p>
-          <button onClick={fetchData} className="mt-3 text-sm text-primary hover:underline">Retry</button>
+          <button onClick={fetchData} className="mt-3 text-sm text-primary hover:underline">
+            Retry
+          </button>
         </div>
       ) : (
         <div className="max-w-6xl mx-auto pb-8 px-2">
           {/* Header */}
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-xl font-semibold text-on-surface flex items-center gap-2">
                 <Target className="w-5 h-5 text-primary" />
@@ -155,15 +193,113 @@ export default function ResumeMe() {
               </h1>
               <p className="text-sm text-on-surface-variant mt-0.5">{data?.headline}</p>
             </div>
-            <button onClick={fetchData} className="p-1.5 hover:bg-hover rounded transition-colors" title="Refresh">
+            <button
+              onClick={fetchData}
+              className="p-1.5 hover:bg-hover rounded transition-colors"
+              title="Refresh"
+            >
               <RefreshCw className="w-3.5 h-3.5 text-on-surface-variant" />
             </button>
+          </div>
+
+          {/* Horizon tabs */}
+          <div className="flex items-center gap-1 mb-4 border-b border-border pb-0.5">
+            {HORIZON_KEYS.map((key) => (
+              <button
+                key={key}
+                onClick={() => setActiveHorizon(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors ${
+                  activeHorizon === key
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant'
+                }`}
+              >
+                {HORIZON_ICONS[key]}
+                {HORIZON_LABELS[key]}
+              </button>
+            ))}
           </div>
 
           {/* Two-column layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* Left column (2/3) */}
             <div className="lg:col-span-2 space-y-5">
+              {/* Direction panel (active horizon) */}
+              {horizon && (
+                <section>
+                  <h2 className="text-sm font-semibold text-on-surface mb-2 flex items-center gap-1.5">
+                    <Sunrise className="w-4 h-4 text-violet-500" />
+                    Direction — {HORIZON_LABELS[activeHorizon]}
+                  </h2>
+                  <div className="bg-surface border border-border rounded-lg p-3 space-y-2">
+                    <p className="text-sm text-on-surface leading-relaxed">{horizon.body}</p>
+                    {horizon.items.length > 0 && (
+                      <ul className="space-y-1">
+                        {horizon.items.map((item, idx) => (
+                          <li
+                            key={idx}
+                            className="text-xs text-on-surface-variant flex items-start gap-1.5"
+                          >
+                            <span className="text-primary mt-0.5 flex-shrink-0">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Activity Summary */}
+              <section>
+                <h2 className="text-sm font-semibold text-on-surface mb-2 flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-sky-500" />
+                  Recent Summary
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Today */}
+                  {data?.activitySummary?.today && (
+                    <div className="bg-surface border border-border rounded-lg p-3">
+                      <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                        Today
+                      </p>
+                      <p className="text-sm text-on-surface mb-1">{data.activitySummary.today.body}</p>
+                      {data.activitySummary.today.highlights.length > 0 && (
+                        <ul className="space-y-0.5">
+                          {data.activitySummary.today.highlights.map((h, idx) => (
+                            <li key={idx} className="text-xs text-on-surface-variant truncate">
+                              • {h}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {data.activitySummary.today.filesChanged === 0 && (
+                        <p className="text-xs text-on-surface-variant italic mt-1">No changes yet today.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* This week */}
+                  {data?.activitySummary?.week && (
+                    <div className="bg-surface border border-border rounded-lg p-3">
+                      <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                        This Week
+                      </p>
+                      <p className="text-sm text-on-surface mb-1">{data.activitySummary.week.body}</p>
+                      {data.activitySummary.week.highlights.length > 0 && (
+                        <ul className="space-y-0.5">
+                          {data.activitySummary.week.highlights.slice(0, 4).map((h, idx) => (
+                            <li key={idx} className="text-xs text-on-surface-variant truncate">
+                              • {h}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+
               {/* Recommended Next Action */}
               {data?.recommendedAction && (
                 <section>
@@ -193,7 +329,10 @@ export default function ResumeMe() {
                     </div>
                     <div className="pt-1">
                       <button
-                        onClick={() => { setContinueFeedback(true); setTimeout(() => setContinueFeedback(false), 3000); }}
+                        onClick={() => {
+                          setContinueFeedback(true);
+                          setTimeout(() => setContinueFeedback(false), 3000);
+                        }}
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
                       >
                         <Sparkles className="w-3.5 h-3.5" /> Continue
@@ -217,7 +356,10 @@ export default function ResumeMe() {
                   </h2>
                   <div className="space-y-2">
                     {data.currentState.map((item, idx) => (
-                      <div key={idx} className="bg-surface border border-border rounded-lg p-3 flex items-start gap-3">
+                      <div
+                        key={idx}
+                        className="bg-surface border border-border rounded-lg p-3 flex items-start gap-3"
+                      >
                         <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-on-surface">{item.label}</p>
@@ -249,8 +391,12 @@ export default function ResumeMe() {
                         <div className="flex items-start gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-on-surface truncate leading-snug">{item.title}</p>
-                            <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-2">{item.reason}</p>
+                            <p className="text-sm font-medium text-on-surface truncate leading-snug">
+                              {item.title}
+                            </p>
+                            <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-2">
+                              {item.reason}
+                            </p>
                           </div>
                           <ChevronRight className="w-3.5 h-3.5 text-on-surface-variant flex-shrink-0 mt-0.5" />
                         </div>
@@ -279,7 +425,9 @@ export default function ResumeMe() {
                           <p className="text-sm text-on-surface truncate leading-snug">{file.title}</p>
                           <p className="text-xs text-on-surface-variant truncate">{file.relativePath}</p>
                         </div>
-                        <span className="text-xs text-on-surface-variant flex-shrink-0">{formatDate(file.mtime)}</span>
+                        <span className="text-xs text-on-surface-variant flex-shrink-0">
+                          {formatDate(file.mtime)}
+                        </span>
                       </div>
                     ))}
                   </div>
