@@ -39,3 +39,12 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 See [desktop build, architecture and installation](docs/desktop-macos.md).
 The existing web UI and the sibling Personal Vault MCP server are bundled into one Apple Silicon application. From this repository: `npm ci && npm run desktop:build`, then `npm run test:desktop`. No end-user Node.js or MCP setup is needed. Current local artifacts are not Developer ID signed/notarized.
+
+## Download the macOS preview
+
+The current Apple Silicon preview is published in [GitHub Release v0.1.0-preview.1](https://github.com/kir-au/personal-vault-ui/releases/tag/v0.1.0-preview.1):
+
+- [Download the DMG](https://github.com/kir-au/personal-vault-ui/releases/download/v0.1.0-preview.1/Personal.Vault-0.1.0-arm64.dmg)
+- [Download the ZIP](https://github.com/kir-au/personal-vault-ui/releases/download/v0.1.0-preview.1/Personal.Vault-0.1.0-arm64-mac.zip)
+
+This is an unsigned, unnotarized preview for Apple Silicon Macs. The repository is private, so GitHub authentication/access is required. See the release notes and [desktop documentation](docs/desktop-macos.md) before installing.
