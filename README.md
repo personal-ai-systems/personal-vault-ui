@@ -42,9 +42,9 @@ The existing web UI and the sibling Personal Vault MCP server are bundled into o
 
 ## Download the macOS preview
 
-The current Apple Silicon preview is published in [GitHub Release v0.1.0-preview.1](https://github.com/kir-au/personal-vault-ui/releases/tag/v0.1.0-preview.1):
+The current Apple Silicon preview is published in [GitHub Release v0.1.0-preview.1](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.1.0-preview.1):
 
-- [Download the DMG](https://github.com/kir-au/personal-vault-ui/releases/download/v0.1.0-preview.1/Personal.Vault-0.1.0-arm64.dmg)
-- [Download the ZIP](https://github.com/kir-au/personal-vault-ui/releases/download/v0.1.0-preview.1/Personal.Vault-0.1.0-arm64-mac.zip)
+- [Download the DMG](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.1.0-preview.1/Personal.Vault-0.1.0-arm64.dmg)
+- [Download the ZIP](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.1.0-preview.1/Personal.Vault-0.1.0-arm64-mac.zip)
 
 This is an unsigned, unnotarized preview for Apple Silicon Macs. The repository is private, so GitHub authentication/access is required. See the release notes and [desktop documentation](docs/desktop-macos.md) before installing.
