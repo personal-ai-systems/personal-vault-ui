@@ -3,14 +3,13 @@
 import { useState } from 'react';
 import FileBrowser from "@/components/FileBrowser";
 import RecentView from "@/components/RecentView";
-import ResumeMe from "@/components/ResumeMe";
 import SearchView from "@/components/SearchView";
 import Sidebar from "@/components/Sidebar";
 import TopAppBar from "@/components/TopAppBar";
-import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import NoteActions from "@/components/NoteActions";
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'resume' | 'browse' | 'recent'>('resume');
+  const [currentView, setCurrentView] = useState<'resume' | 'browse' | 'recent'>('browse');
   const [searchQuery, setSearchQuery] = useState('');
   const isSearching = searchQuery.trim().length > 0;
 
@@ -26,10 +25,11 @@ export default function Home() {
             onSearchQueryChange={setSearchQuery}
           />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
+            <NoteActions />
             {isSearching ? (
               <SearchView query={searchQuery} />
             ) : currentView === 'resume' ? (
-              <ResumeMe />
+              <FileBrowser />
             ) : currentView === 'browse' ? (
               <FileBrowser />
             ) : (
@@ -38,7 +38,7 @@ export default function Home() {
           </main>
         </div>
       </div>
-      <PWAInstallPrompt />
+
     </>
   );
 }

@@ -1,0 +1,22 @@
+import { spawnSync } from 'node:child_process';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const vault=path.resolve(process.env.PERSONAL_VAULT_SOURCE || path.join(root,'..','personal-vault'));
+const stage=path.join(root,'.desktop-stage');
+function run(command,args,cwd=root){const r=spawnSync(command,args,{cwd,stdio:'inherit',env:{...process.env,NEXT_TELEMETRY_DISABLED:'1',CSC_IDENTITY_AUTO_DISCOVERY:'false'}});if(r.status!==0)throw Error(`${command} ${args.join(' ')} failed: ${r.status}`);}
+if(process.platform!=='darwin'||process.arch!=='arm64')throw Error('Build this initial version on an Apple Silicon Mac.');
+await readFile(path.join(vault,'mcp/personal-vault-server.mjs'));
+run('npm',['test'],vault);
+run('npm',['run','build']);
+await rm(stage,{recursive:true,force:true});await mkdir(stage,{recursive:true});
+await cp(path.join(root,'.next/standalone'),path.join(stage,'web'),{recursive:true,filter:source=>!['.env','.env.local','.env.production','.env.production.local'].includes(path.basename(source))});
+await cp(path.join(root,'.next/static'),path.join(stage,'web/.next/static'),{recursive:true});
+await cp(path.join(root,'public'),path.join(stage,'web/public'),{recursive:true});
+await mkdir(path.join(stage,'vault/mcp'),{recursive:true});
+for(const name of ['package.json','package-lock.json','LICENSE'])await cp(path.join(vault,name),path.join(stage,'vault',name));
+await cp(path.join(vault,'mcp/personal-vault-server.mjs'),path.join(stage,'vault/mcp/personal-vault-server.mjs'));
+run('npm',['ci','--omit=dev','--ignore-scripts'],path.join(stage,'vault'));
+await writeFile(path.join(stage,'build-info.json'),JSON.stringify({platform:'darwin',arch:'arm64',builtAt:new Date().toISOString(),signed:false},null,2));
+if(!process.argv.includes('--stage-only'))run('npx',['--no-install','electron-builder','--mac','--arm64',...(process.argv.includes('--dir')?['--dir']:[])]);

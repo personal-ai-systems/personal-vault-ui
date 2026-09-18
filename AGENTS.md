@@ -30,10 +30,8 @@ The project has basic Next.js setup with shadcn/ui components. Review existing c
 4. **No WhatsApp**: Ignore any WhatsApp-related files in the vault
 
 ## Testing
-Test with actual vault data at `~/personal-vault/raw/2026/04/`. The vault contains:
-- Architecture document (`2026-04-22-ai-vault-architecture.md`)
-- Daily logs
-- Imported content
+Test ONLY with temporary fixture folders. Never use the real user Vault.
+Desktop architecture and commands: see docs/desktop-macos.md.
 
 ## Next Priority
 1. Fix any broken file paths after move to `~/development/personal/personal-vault-ui/`

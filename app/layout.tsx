@@ -1,13 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Roboto } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
-const roboto = Roboto({
-  weight: ['300', '400', '500', '700'],
-  subsets: ['latin'],
-  variable: '--font-roboto',
-});
 
 export const metadata: Metadata = {
   title: "Personal Vault",
@@ -43,7 +35,7 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#1976d2" />
         <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
       </head>
-      <body className={`${inter.className} ${roboto.variable} antialiased`}>
+      <body className="antialiased">
         {children}
       </body>
     </html>

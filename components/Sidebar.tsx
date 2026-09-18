@@ -39,13 +39,6 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
 
   const mainItems: SidebarItem[] = [
     {
-      id: 'resume',
-      label: 'Resume Me',
-      icon: <Target className="w-5 h-5" />,
-      active: currentView === 'resume',
-      onClick: () => onViewChange('resume'),
-    },
-    {
       id: 'vault',
       label: 'Vault',
       icon: <HardDrive className="w-5 h-5" />,
