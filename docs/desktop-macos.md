@@ -60,9 +60,24 @@ npm run desktop:build
 
 ## Install (tester)
 
-Open the DMG, drag Personal Vault to Applications, then double-click it. Select a NEW empty test folder first. Node, Terminal, MCP clients and developer checkouts are not needed at runtime.
+Open the DMG, drag Personal Vault to Applications. **Because this build is not Developer ID signed or notarized, do not double-click it the first time.** Instead:
 
-IMPORTANT: preview builds before signing are not Developer ID signed or notarized. macOS Gatekeeper may block an Internet-downloaded copy. Do not ask testers to disable Gatekeeper. Developer ID signing and Apple notarization are release prerequisites for a frictionless nontechnical installation; they need the owner's credentials.
+1. Open **Finder** → **Applications**.
+2. **Right-click (or Control-click)** on **Personal Vault** and choose **Open**.
+3. In the security dialog click **Open**. The app will launch and this warning will not appear again for this copy.
+
+Alternative methods if the above does not appear:
+
+- **System Settings → Privacy & Security**, scroll down to the **Security** section, and click **"Open Anyway"** next to the Personal Vault block.
+- From **Terminal**:
+  ```sh
+  xattr -d com.apple.quarantine "/Applications/Personal Vault.app"
+  ```
+  Then double-click the app normally.
+
+Select a NEW empty test folder first. Node, Terminal, MCP clients and developer checkouts are not needed at runtime.
+
+> Do not ask testers to disable Gatekeeper globally (`spctl --master-disable`). Developer ID signing and Apple notarization are required only for a frictionless, double-click install for nontechnical users; they are **not** required for the current private verification stage with willing testers.
 
 ## Verification
 
@@ -78,10 +93,13 @@ IMPORTANT: preview builds before signing are not Developer ID signed or notarize
 - Filesystem symlinks are refused in operations; not a sandbox against a hostile local process replacing directories concurrently. Concurrent-writer and crash-atomic-save guarantees need further review.
 - No auto-updater, Intel/Windows build or cloud sync in this preview.
 - A normal folder-dialog and install test on the target M2 is still required.
+- Developer ID signing + notarization are **not** blockers for private testing; they are only prerequisites for a frictionless public/nontechnical release.
 
-## Apple Developer Program prerequisites (owner must complete)
+## Apple Developer Program prerequisites (for a frictionless public release)
 
-The project cannot sign or notarize with fabricated credentials. Before a public macOS release, the Apple account owner must:
+The project cannot sign or notarize with fabricated credentials. Apple Developer Program enrollment is **not required** for the current private verification stage with testers who are willing to use the right-click → Open workaround above. It becomes necessary only when you want a frictionless double-click install for nontechnical users or any broader distribution.
+
+Before that public macOS release, the Apple account owner must:
 
 1. **Enroll in the Apple Developer Program** (Organization or Individual).  
    https://developer.apple.com/programs/
