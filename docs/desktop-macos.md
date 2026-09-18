@@ -1,6 +1,6 @@
 # macOS Apple Silicon preview
 
-Status: local preview, not a public release. No commits or publishing are performed by the build.
+Status: **internal verification/testing only**. Repositories remain private. Do not distribute the preview release publicly.
 
 ## How the two repositories connect
 
@@ -28,11 +28,41 @@ The build runs Vault tests, builds the Next standalone web server, stages only t
 
 Review changes with `git diff` and `git status` in BOTH repositories. No automatic commits/pushes.
 
+### Unsigned local builds (default)
+
+By default no Apple credentials are required and no codesigning identity is used:
+
+```sh
+npm run desktop:build
+```
+
+`CSC_IDENTITY_AUTO_DISCOVERY=false` is set inside the build script so electron-builder skips Developer ID signing. The `afterSign` notarization hook also checks for credentials and skips notarization when none are present. This keeps the existing internal verification path intact while the repo is private.
+
+### Signed and notarized release build
+
+To produce a signed/notarized build suitable for distribution you must first complete the Apple-side setup below, then run:
+
+```sh
+# Option A: App Store Connect API key (recommended for CI)
+export APPLE_API_KEY="/path/to/AuthKey_xxxxxxxxxx.p8"
+export APPLE_API_KEY_ID="xxxxxxxxxx"
+export APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+export CSC_IDENTITY_AUTO_DISCOVERY=true
+npm run desktop:build
+
+# Option B: Apple ID + app-specific password (interactive/local)
+export APPLE_ID="you@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="XXXXXXXXXX"
+export CSC_IDENTITY_AUTO_DISCOVERY=true
+npm run desktop:build
+```
+
 ## Install (tester)
 
 Open the DMG, drag Personal Vault to Applications, then double-click it. Select a NEW empty test folder first. Node, Terminal, MCP clients and developer checkouts are not needed at runtime.
 
-IMPORTANT: this local preview is not Developer ID signed or notarized. macOS Gatekeeper may block an Internet-downloaded copy. Do not ask testers to disable Gatekeeper. Developer ID signing and Apple notarization are release prerequisites for a frictionless nontechnical installation; they need the owner's credentials and are not automated in this preview.
+IMPORTANT: preview builds before signing are not Developer ID signed or notarized. macOS Gatekeeper may block an Internet-downloaded copy. Do not ask testers to disable Gatekeeper. Developer ID signing and Apple notarization are release prerequisites for a frictionless nontechnical installation; they need the owner's credentials.
 
 ## Verification
 
@@ -48,6 +78,47 @@ IMPORTANT: this local preview is not Developer ID signed or notarized. macOS Gat
 - Filesystem symlinks are refused in operations; not a sandbox against a hostile local process replacing directories concurrently. Concurrent-writer and crash-atomic-save guarantees need further review.
 - No auto-updater, Intel/Windows build or cloud sync in this preview.
 - A normal folder-dialog and install test on the target M2 is still required.
+
+## Apple Developer Program prerequisites (owner must complete)
+
+The project cannot sign or notarize with fabricated credentials. Before a public macOS release, the Apple account owner must:
+
+1. **Enroll in the Apple Developer Program** (Organization or Individual).  
+   https://developer.apple.com/programs/
+2. **Create a Developer ID Application certificate** in Certificates, Identifiers & Profiles, download and import it into the macOS Keychain, then verify with:
+   ```sh
+   security find-identity -v -p codesigning
+   ```
+   The identity should read `Developer ID Application: Your Name/Org (TEAMID)`.
+3. **Create an App Store Connect API key** with **Admin** or **App Manager** role, download the `.p8` private key file, and note the Key ID and Issuer ID.  
+   https://appstoreconnect.apple.com/access/integrations/api
+4. **Register the app identifier** `org.personalaisystems.vault` (or update `appId` in `package.json` to match an existing identifier) at:  
+   https://developer.apple.com/account/resources/identifiers/list
+
+### Useful notarytool commands once credentials exist
+
+Store credentials in the keychain interactively (optional, for local Apple ID flow):
+```sh
+xcrun notarytool store-credentials \
+  --apple-id "you@example.com" \
+  --team-id "XXXXXXXXXX" \
+  --password "xxxx-xxxx-xxxx-xxxx" \
+  personal-vault-notary
+```
+
+Submit an archive manually for a dry run:
+```sh
+xcrun notarytool submit dist/Personal.Vault-0.1.0-arm64-mac.zip \
+  --key /path/to/AuthKey_xxxxxxxxxx.p8 \
+  --key-id xxxxxxxxxx \
+  --issuer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
+  --wait
+```
+
+Staple after successful notarization:
+```sh
+xcrun stapler staple "dist/mac-arm64/Personal Vault.app"
+```
 
 ## Verified locally on 2026-09-18
 
