@@ -40,11 +40,11 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 See [desktop build, architecture and installation](docs/desktop-macos.md).
 The existing web UI and the sibling Personal Vault MCP server are bundled into one Apple Silicon application. From this repository: `npm ci && npm run desktop:build`, then `npm run test:desktop`. No end-user Node.js or MCP setup is needed. Current local artifacts are not Developer ID signed/notarized; testers can still install by right-clicking the app and choosing Open (see the install instructions in the doc).
 
-## Download the macOS preview
+## Download the macOS verification build
 
-The current Apple Silicon preview is published in [GitHub Release v0.1.0-preview.2](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.1.0-preview.2):
+The current Apple Silicon verification build is published in [GitHub Release v0.1.0-preview.2 — INTERNAL VERIFICATION ONLY](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.1.0-preview.2):
 
 - [Download the DMG](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.1.0-preview.2/Personal.Vault-0.1.0-arm64.dmg)
 - [Download the ZIP](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.1.0-preview.2/Personal.Vault-0.1.0-arm64-mac.zip)
 
-This is an unsigned, unnotarized preview for Apple Silicon Macs. The repository is private, so GitHub authentication/access is required. Testers can install it by right-clicking the app and choosing Open; see the install steps in [docs/desktop-macos.md](docs/desktop-macos.md).
+Both repositories are private. This is an unsigned, unnotarized test build; use the [unsigned-preview installation instructions](docs/desktop-macos.md#installing-the-unsigned-preview-no-apple-developer-account-needed) and a disposable test Vault. Do not treat these links as a public/product release.
