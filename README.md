@@ -1,8 +1,24 @@
 # Personal Vault
 
-Personal Vault is local-first memory for AI that you own. It stores your notes and files as ordinary Markdown and attachments in a folder on your Mac, so you can use them with any editor without locking your data into one app or AI provider.
+**Your AI memory should belong to you, not to one model.**
 
-The Mac app lets you browse, search and edit the same files. No account or cloud subscription is needed.
+Personal Vault keeps your notes, decisions, project context and attachments as ordinary files in a folder on your Mac. The app gives you a simple way to browse, search and edit them. The same files remain readable in Finder, Obsidian, VS Code or any Markdown editor.
+
+## Why use Personal Vault?
+
+- **Switch AI models without rebuilding your memory.** Your saved context lives in your folder instead of being trapped inside one provider's chat history.
+- **Choose the right model for each job.** Use OpenAI GPT or Codex models, Anthropic Claude, Google Gemini, DeepSeek, Kimi, or local models such as Llama, Qwen and Mistral through a suitable client.
+- **Use it without AI.** The Mac app and ordinary files work on their own. No connector or MCP setup is required.
+- **Connect AI when it helps.** A compatible client can use the optional MCP interface to list, read, search, create and update the same files.
+- **Stay in control.** There is no hidden canonical database, required account or cloud subscription. You choose the folder and your backup.
+
+## Three ways to use it
+
+1. **As a Mac app:** choose a folder, then browse, search and edit your notes.
+2. **As ordinary files:** open them directly or give selected files to any AI client that accepts file input.
+3. **Through MCP:** connect a compatible AI client for controlled access to the Vault's file tools.
+
+Personal Vault does not bundle model subscriptions or automatically connect every provider. Model support depends on the client you use and the access you grant it. Switching models preserves your files; the new client still needs to load the relevant context.
 
 ## Try the early preview
 
