@@ -21,8 +21,11 @@ This is an early test version, with rough edges. Start with copies of files you 
 
 [Release notes and ZIP download](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.1.0-preview.2)
 
-## For developers
 
-This repository contains the desktop interface and macOS packaging. The [Personal Vault engine](https://github.com/personal-ai-systems/personal-vault) handles file operations through a local MCP service, bundled with the desktop app. End users do not need Node.js or MCP configuration.
+This is the existing Preview 2 binary, now offered for public testing, not a newly built version.
 
-Keep both source repositories as sibling directories. See [desktop development](docs/desktop-macos.md) for build instructions and limitations. The downloadable preview is an earlier build; uncommitted local development is not part of that release.
+SHA-256:
+```
+7971766e02674a3899acd1c9de88e7a171f84ba089bdb469d24420e3e9399648  Personal.Vault-0.1.0-arm64.dmg
+3f8536afdbe099cef604b4ad0e02e7f7d0178329329e0d5bdd42c299a223c178  Personal.Vault-0.1.0-arm64-mac.zip
+```
