@@ -2,7 +2,9 @@
 
 **Your AI memory should belong to you, not to one model.**
 
-Personal Vault keeps your notes, decisions, project context and attachments as ordinary files in a folder on your Mac. The app gives you a simple way to browse, search and edit them. The same files remain readable in Finder, Obsidian, VS Code or any Markdown editor.
+Personal Vault keeps your notes, decisions, project context and attachments as ordinary files in a folder you own. The app gives you a simple way to browse, search and edit them. The same files remain readable in Finder, Windows File Explorer, Obsidian, VS Code or any Markdown editor.
+
+This repository contains the first desktop client, and the current download is a macOS Apple Silicon preview. The Personal Vault engine itself is verified on macOS, Windows and Linux. Windows/Linux installers and secure access from ChatGPT or other compatible mobile MCP clients are **coming soon**; see the [platform support and architecture](https://github.com/personal-ai-systems/personal-vault#platform-support) in the main repository.
 
 ## Why use Personal Vault?
 
