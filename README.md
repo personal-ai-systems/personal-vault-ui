@@ -1,8 +1,8 @@
 # Personal Vault
 
-Keep your notes and files in a folder you own. Browse, search and edit them in a simple Mac app, and open the same files in Finder or your favourite Markdown editor.
+Personal Vault is local-first memory for AI that you own. It stores your notes and files as ordinary Markdown and attachments in a folder on your Mac, so you can use them with any editor without locking your data into one app or AI provider.
 
-No account or cloud subscription is needed. Your files stay on your Mac.
+The Mac app lets you browse, search and edit the same files. No account or cloud subscription is needed.
 
 ## Try the early preview
 
