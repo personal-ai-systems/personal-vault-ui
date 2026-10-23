@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const vault=path.resolve(process.env.PERSONAL_VAULT_SOURCE || path.join(root,'..','personal-vault'));
 const stage=path.join(root,'.desktop-stage');
-function run(command,args,cwd=root){const r=spawnSync(command,args,{cwd,stdio:'inherit',env:{...process.env,NEXT_TELEMETRY_DISABLED:'1',CSC_IDENTITY_AUTO_DISCOVERY:'false'}});if(r.status!==0)throw Error(`${command} ${args.join(' ')} failed: ${r.status}`);}
+function run(command,args,cwd=root){const r=spawnSync(command,args,{cwd,stdio:'inherit',env:{...process.env,NEXT_TELEMETRY_DISABLED:'1',CSC_IDENTITY_AUTO_DISCOVERY:process.env.CSC_IDENTITY_AUTO_DISCOVERY ?? 'false'}});if(r.status!==0)throw Error(`${command} ${args.join(' ')} failed: ${r.status}`);}
 if(process.platform!=='darwin'||process.arch!=='arm64')throw Error('Build this initial version on an Apple Silicon Mac.');
 await readFile(path.join(vault,'mcp/personal-vault-server.mjs'));
 run('npm',['test'],vault);
@@ -18,5 +18,9 @@ await mkdir(path.join(stage,'vault/mcp'),{recursive:true});
 for(const name of ['package.json','package-lock.json','LICENSE'])await cp(path.join(vault,name),path.join(stage,'vault',name));
 await cp(path.join(vault,'mcp/personal-vault-server.mjs'),path.join(stage,'vault/mcp/personal-vault-server.mjs'));
 run('npm',['ci','--omit=dev','--ignore-scripts'],path.join(stage,'vault'));
-await writeFile(path.join(stage,'build-info.json'),JSON.stringify({platform:'darwin',arch:'arm64',builtAt:new Date().toISOString(),signed:false},null,2));
-if(!process.argv.includes('--stage-only'))run('npx',['--no-install','electron-builder','--mac','--arm64',...(process.argv.includes('--dir')?['--dir']:[])]);
+const developerSigningEnabled=process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'true' || Boolean(process.env.CSC_LINK);
+await writeFile(path.join(stage,'build-info.json'),JSON.stringify({platform:'darwin',arch:'arm64',builtAt:new Date().toISOString(),signed:developerSigningEnabled},null,2));
+if(!process.argv.includes('--stage-only')){
+  run('npx',['--no-install','electron-builder','--mac','--arm64',...(process.argv.includes('--dir')?['--dir']:[])]);
+  run('/usr/bin/codesign',['--verify','--deep','--strict','--verbose=2',path.join(root,'dist','mac-arm64','Personal Vault.app')]);
+}

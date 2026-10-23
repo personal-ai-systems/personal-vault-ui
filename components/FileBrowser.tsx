@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ChevronRight, FileText, Folder, Calendar, Tag, User, File, FileCode, FileImage, FileArchive, FileVideo, FileAudio } from 'lucide-react';
-import MarkdownModal from './MarkdownModal';
+import { useEffect, useState } from 'react';
+import { ChevronRight, FileText, Folder, FolderOpen, File, FileCode, FileImage, FileArchive, FileVideo, FileAudio, LoaderCircle, Plus, ExternalLink } from 'lucide-react';
+import MarkdownRenderer from './MarkdownRenderer';
+import NoteActions from './NoteActions';
+import { useVaultActions, useVaultInfo } from '@/lib/vault-info-client';
 
 interface FileItem {
   name: string;
@@ -19,11 +21,20 @@ interface DirectoryItem {
 }
 
 interface FileBrowserProps {
-  initialPath?: string;
+  /** Folder to display, relative to the Vault root ('' is the root). */
+  path: string;
+  onPathChange: (path: string) => void;
+  onNewNote: () => void;
+  /** Bumped by the page after any write so the listing re-reads the disk. */
+  refreshKey?: number;
+  onChanged?: () => void;
+  /** A note the sidebar opened, relative to the Vault root. */
+  openFile?: string | null;
+  /** Called once the note above has been opened. */
+  onOpenedFile?: () => void;
 }
 
-export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
-  const [currentPath, setCurrentPath] = useState(initialPath);
+export default function FileBrowser({ path, onPathChange, onNewNote, refreshKey = 0, onChanged, openFile, onOpenedFile }: FileBrowserProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,25 +42,26 @@ export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [fileContent, setFileContent] = useState<any>(null);
   const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [noteMessage, setNoteMessage] = useState<string | null>(null);
+  const { info } = useVaultInfo();
+  const { run: runDesktopAction, message: desktopMessage } = useVaultActions();
 
-  const fetchDirectory = async (path: string = '') => {
+  const fetchDirectory = async (target: string = '') => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (path) {
-        params.set('path', path);
-      }
-      
+      if (target) params.set('path', target);
+
       const response = await fetch(`/api/files?${params}`);
       const data = await response.json();
-      
+
       if (data.error) {
         setError(data.error);
       } else {
         setFiles(data.files || []);
         setDirectories(data.directories || []);
-        setCurrentPath(data.currentPath || '');
       }
     } catch (err) {
       setError('Failed to fetch directory contents');
@@ -61,18 +73,19 @@ export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
 
   const fetchFileContent = async (filePath: string) => {
     setContentLoading(true);
+    setContentError(null);
     try {
       const encodedPath = encodeURIComponent(filePath);
       const response = await fetch(`/api/files/${encodedPath}`);
       const data = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
+
+      if (!response.ok || data.error) {
+        setContentError(data.error || 'This file could not be opened.');
       } else {
         setFileContent(data);
       }
     } catch (err) {
-      setError('Failed to fetch file content');
+      setContentError('Failed to fetch file content');
       console.error(err);
     } finally {
       setContentLoading(false);
@@ -80,41 +93,58 @@ export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
   };
 
   useEffect(() => {
-    fetchDirectory(currentPath);
-  }, []);
+    void fetchDirectory(path);
+  }, [path, refreshKey]);
 
-  const handleDirectoryClick = (dir: DirectoryItem) => {
-    const newPath = dir.relativePath;
-    setCurrentPath(newPath);
-    fetchDirectory(newPath);
+  // The sidebar can ask for a specific note; open it once the file is known.
+  useEffect(() => {
+    if (!openFile) return;
+    const match = files.find((file) => file.relativePath === openFile);
+    if (match) handleFileClick(match);
+    else handleFileClick({ name: openFile.split('/').pop() || openFile, path: openFile, relativePath: openFile, size: 0, mtime: Date.now() });
+    onOpenedFile?.();
+  }, [openFile, files]);
+
+  const openDirectory = (dir: DirectoryItem) => {
+    onPathChange(dir.relativePath);
     setSelectedFile(null);
     setFileContent(null);
   };
 
   const handleFileClick = (file: FileItem) => {
+    setNoteMessage(null);
     setSelectedFile(file);
-    fetchFileContent(file.relativePath);
+    setFileContent(null);
+    void fetchFileContent(file.relativePath);
   };
 
   const handleBreadcrumbClick = (index: number) => {
-    if (index < 0) {
-      setCurrentPath('');
-      fetchDirectory('');
-      setSelectedFile(null);
-      setFileContent(null);
-      return;
-    }
-    const parts = currentPath.split('/').filter(p => p);
-    const newPath = parts.slice(0, index + 1).join('/');
-    setCurrentPath(newPath);
-    fetchDirectory(newPath);
-    setSelectedFile(null);
-    setFileContent(null);
+    if (index < 0) { onPathChange(''); return; }
+    const parts = path.split('/').filter(p => p);
+    onPathChange(parts.slice(0, index + 1).join('/'));
   };
 
-  const handleCloseModal = () => {
+  const handleClosePanel = () => {
     setSelectedFile(null);
     setFileContent(null);
+    setContentError(null);
+  };
+
+  const handleNoteChanged = (message: string, nextPath?: string) => {
+    setNoteMessage(message);
+    onChanged?.();
+    if (nextPath && nextPath !== selectedFile?.relativePath) {
+      // Archive/restore moved the file: follow it instead of showing a stale path.
+      const parts = nextPath.split('/');
+      const folder = parts.slice(0, -1).join('/');
+      const name = parts[parts.length - 1];
+      onPathChange(folder);
+      setSelectedFile({ name, path: nextPath, relativePath: nextPath, size: 0, mtime: Date.now() });
+      void fetchFileContent(nextPath);
+    } else if (selectedFile) {
+      void fetchFileContent(selectedFile.relativePath);
+    }
+    void fetchDirectory(path);
   };
 
   const getFileIcon = (fileName: string) => {
@@ -182,102 +212,178 @@ export default function FileBrowser({ initialPath = '' }: FileBrowserProps) {
     });
   };
 
-  const breadcrumbs = currentPath
-    ? ['personal-vault', ...currentPath.split('/').filter(p => p)]
-    : ['personal-vault'];
+  const vaultName = info?.name || 'Vault';
+  const breadcrumbs = path ? [vaultName, ...path.split('/').filter(p => p)] : [vaultName];
+  const isEmpty = !loading && !error && directories.length === 0 && files.length === 0 && path === '';
 
   return (
-    <div className="h-full">
-      {/* Breadcrumbs */}
-      <div className="px-4 py-2 border-b border-border bg-surface-variant/50">
-        <div className="flex items-center text-sm">
-          {breadcrumbs.map((crumb, index) => (
-            <div key={index} className="flex items-center">
-              {index > 0 && <ChevronRight className="w-3 h-3 mx-1 text-on-surface-variant" />}
-              <button
-                onClick={() => handleBreadcrumbClick(index - 1)}
-                className={`px-2 py-1 rounded hover:bg-hover transition-colors ${
-                  index === breadcrumbs.length - 1
-                    ? 'font-medium text-on-surface'
-                    : 'text-on-surface-variant'
-                }`}
-              >
-                {crumb}
-              </button>
+    <div className="flex h-full">
+      <div className="flex-1 min-w-0">
+        {/* Breadcrumbs */}
+        <div className="px-4 py-2 border-b border-border bg-surface-variant/50">
+          <div className="flex items-center text-sm">
+            {breadcrumbs.map((crumb, index) => (
+              <div key={index} className="flex items-center">
+                {index > 0 && <ChevronRight className="w-3 h-3 mx-1 text-on-surface-variant" />}
+                <button
+                  onClick={() => handleBreadcrumbClick(index - 1)}
+                  className={`px-2 py-1 rounded hover:bg-hover transition-colors ${
+                    index === breadcrumbs.length - 1
+                      ? 'font-medium text-on-surface'
+                      : 'text-on-surface-variant'
+                  }`}
+                >
+                  {crumb}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* File list */}
+        <div className="overflow-auto" style={{ height: 'calc(100vh - 300px)' }}>
+          {loading ? (
+            <div className="p-8 text-center">
+              <LoaderCircle className="w-8 h-8 text-primary mx-auto animate-spin" />
+              <p className="mt-2 text-sm text-on-surface-variant">Loading directory...</p>
             </div>
-          ))}
+          ) : error ? (
+            <div className="p-8 text-center">
+              <p className="text-red-500">{error}</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {/* Directories first */}
+              {directories.map((dir) => (
+                <div
+                  key={dir.relativePath}
+                  className="px-4 py-3 hover:bg-hover cursor-pointer transition-colors flex items-center"
+                  onClick={() => openDirectory(dir)}
+                >
+                  <Folder className="w-5 h-5 text-blue-500 mr-3" />
+                  <div className="flex-1">
+                    <div className="font-medium text-on-surface">{dir.name}</div>
+                    <div className="text-xs text-on-surface-variant mt-0.5">
+                      Folder
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-on-surface-variant" />
+                </div>
+              ))}
+
+              {/* Files */}
+              {files.map((file) => (
+                <div
+                  key={file.relativePath}
+                  className={`px-4 py-3 hover:bg-hover cursor-pointer transition-colors flex items-center ${
+                    selectedFile?.relativePath === file.relativePath ? 'bg-active' : ''
+                  }`}
+                  onClick={() => handleFileClick(file)}
+                >
+                  <div className="mr-3">
+                    {getFileIcon(file.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-on-surface truncate">{file.name}</div>
+                    <div className="text-xs text-on-surface-variant mt-0.5 flex items-center space-x-3">
+                      <span>{formatDate(file.mtime)}</span>
+                      <span>•</span>
+                      <span>{formatSize(file.size)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {directories.length === 0 && files.length === 0 && !isEmpty && (
+                <div className="p-8 text-center">
+                  <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-on-surface-variant">This folder is empty</p>
+                  <button
+                    onClick={onNewNote}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
+                  >
+                    <Plus className="w-4 h-4" /> Create a note here
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* First-run empty state: two clear next steps instead of "Empty directory". */}
+          {isEmpty && (
+            <div className="p-8 text-center max-w-md mx-auto">
+              <EmptyVaultIllustration />
+              <h2 className="mt-4 text-lg font-medium text-on-surface">Your Vault is ready</h2>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                It is just a folder of Markdown files. Create a note here, or add files to
+                {' '}<span className="font-mono">{info?.root || 'your folder'}</span>{' '}
+                in Finder — nothing is imported or copied for you.
+              </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={onNewNote}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
+                >
+                  <Plus className="w-4 h-4" /> Create your first note
+                </button>
+                <button
+                  onClick={() => void runDesktopAction('reveal')}
+                  disabled={!info?.root}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-border text-sm hover:bg-hover disabled:opacity-50"
+                >
+                  <ExternalLink className="w-4 h-4" /> Add files in Finder…
+                </button>
+              </div>
+              <p className="mt-3 text-xs text-on-surface-variant">Your files stay where they are. Nothing is moved or imported.</p>
+              {desktopMessage && <p role="status" className="mt-2 text-xs text-on-surface-variant">{desktopMessage}</p>}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* File list */}
-      <div className="overflow-auto" style={{ height: 'calc(100vh - 300px)' }}>
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-sm text-on-surface-variant">Loading directory...</p>
+      {/* Detail panel: the selected note, with its own contextual actions. */}
+      {selectedFile && (
+        <div className="w-[26rem] max-w-[45%] border-l border-border bg-surface flex flex-col flex-shrink-0">
+          <div className="p-3 border-b border-border flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-on-surface truncate">{selectedFile.name}</h2>
+              <p className="text-[11px] text-on-surface-variant font-mono truncate">{selectedFile.relativePath}</p>
+              {noteMessage && <p role="status" className="text-[11px] text-primary mt-0.5">{noteMessage}</p>}
+            </div>
+            <button onClick={handleClosePanel} className="text-xs text-on-surface-variant hover:text-on-surface px-2 py-1 rounded hover:bg-hover" title="Close note">
+              Close
+            </button>
           </div>
-        ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-red-500">{error}</p>
+
+          <div className="flex-1 overflow-auto p-4">
+            {contentLoading ? (
+              <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                <LoaderCircle className="w-4 h-4 animate-spin" /> Loading note…
+              </div>
+            ) : contentError ? (
+              <p role="alert" className="text-sm text-red-500">{contentError}</p>
+            ) : fileContent ? (
+              <MarkdownRenderer content={fileContent.content || ''} />
+            ) : null}
           </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {/* Directories first */}
-            {directories.map((dir) => (
-              <div
-                key={dir.relativePath}
-                className="px-4 py-3 hover:bg-hover cursor-pointer transition-colors flex items-center"
-                onClick={() => handleDirectoryClick(dir)}
-              >
-                <Folder className="w-5 h-5 text-blue-500 mr-3" />
-                <div className="flex-1">
-                  <div className="font-medium text-on-surface">{dir.name}</div>
-                  <div className="text-xs text-on-surface-variant mt-0.5">
-                    Directory
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-on-surface-variant" />
-              </div>
-            ))}
 
-            {/* Files */}
-            {files.map((file) => (
-              <div
-                key={file.relativePath}
-                className="px-4 py-3 hover:bg-hover cursor-pointer transition-colors flex items-center"
-                onClick={() => handleFileClick(file)}
-              >
-                <div className="mr-3">
-                  {getFileIcon(file.name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-on-surface truncate">{file.name}</div>
-                  <div className="text-xs text-on-surface-variant mt-0.5 flex items-center space-x-3">
-                    <span>{formatDate(file.mtime)}</span>
-                    <span>•</span>
-                    <span>{formatSize(file.size)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+          {!contentError && (
+            <NoteActions
+              path={selectedFile.relativePath}
+              rawContent={fileContent?.rawContent || ''}
+              onChanged={handleNoteChanged}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-            {directories.length === 0 && files.length === 0 && (
-              <div className="p-8 text-center">
-                <Folder className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-on-surface-variant">Empty directory</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Modal for markdown viewing */}
-      <MarkdownModal
-        file={selectedFile}
-        content={fileContent}
-        loading={contentLoading}
-        onClose={handleCloseModal}
-      />
+function EmptyVaultIllustration() {
+  return (
+    <div className="mx-auto w-14 h-14 rounded-lg bg-surface-variant flex items-center justify-center">
+      <FileText className="w-7 h-7 text-primary" />
     </div>
   );
 }

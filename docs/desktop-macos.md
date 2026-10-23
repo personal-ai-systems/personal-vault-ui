@@ -12,7 +12,7 @@ Electron window -> bundled Next.js UI/API -> bundled Vault MCP -> selected folde
 
 The desktop launcher picks loopback ports, generates a random per-launch secret, starts both servers using Electron's bundled Node runtime, waits for readiness and opens the existing web UI in a sandboxed window. Closing the app stops its children. MCP does not require user configuration. UI list/read/search/recent and create/update/attach/archive/restore use MCP, not a second store. Legacy Assistant API routes are blocked. Domain features are not part of this preview.
 
-On first normal launch a native folder dialog lets the user select/create a folder. Only its path is saved in Electron's normal Application Support settings. Notes remain in the selected folder, never in the application bundle. App menu -> Choose another Vault changes the selection.
+On first normal launch the app explains itself before asking for anything: a welcome step ("Your notes and files, in your own folder.") offers **Create a new Vault** (defaults to `~/Documents/Personal Vault`, with a "Choose location…" override; the folder is created only after confirmation) or **Open an existing folder** (native folder picker, with the copy "Your files stay where they are. Nothing is moved or imported."). Only its path is saved in Electron's normal Application Support settings. Notes remain in the selected folder, never in the application bundle, and no files are imported or moved. The sidebar always shows the folder name and full path with its own menu: Show in Finder, Open another Vault…, Copy folder path. App menu → Open another Vault… offers both actions and **Cancel keeps the current Vault open**; cancelling never deletes the saved setting.
 
 ## Build automatically (developer only)
 
@@ -81,15 +81,17 @@ Select a NEW empty test folder first. Node, Terminal, MCP clients and developer 
 
 ## Verification
 
-`npm run test:desktop` runs the actual packaged executable against an automatically removed temporary folder, uses isolated temporary app settings, loads the window, and verifies UI -> MCP -> filesystem create/edit/attach/search/archive/restore, service authorization and blocked domain routes. It bypasses the folder dialog for testing. This is NOT evidence of a clean second-Mac install or interactive first-run dialog acceptance.
+`npm run test:desktop` runs the actual packaged executable against an automatically removed temporary folder, uses isolated temporary app settings, loads the window, and verifies UI -> MCP -> filesystem create/edit/attach/search/archive/restore, service authorization, the `/api/vault-info` folder reporting and blocked domain routes. It bypasses the folder dialog for testing. This is NOT evidence of a clean second-Mac install or interactive first-run dialog acceptance.
+
+`npm run test:onboarding` (no window, no packaging) runs the Next.js standalone server exactly as Electron forks it against a temporary Vault and a real MCP server, and checks: unauthorized requests are refused, `/api/vault-info` reports the real folder, `/api/files` no longer returns a placeholder name, nested listing works, create/update/archive/restore reach the filesystem through MCP, no hidden storage appears, the Show in Finder / Open another Vault actions arrive in the main process over IPC, legacy Assistant routes stay blocked, and the rendered page carries the new copy without the account chrome.
 
 ## Known limitations before external release
 
 - Current npm audit reports zero known vulnerabilities after dependency updates; this is not a security audit.
-- The editor is an initial expandable panel requiring a relative filename, not a polished Finder-like save workflow.
+- The editor is now a visible "New note" action (toolbar, `⌘N`) that writes a Markdown file into the folder shown in the sidebar; editing an existing note happens in the note detail panel next to the file list. Both go through MCP only. A Finder-like rename/move workflow is still not implemented.
 - Attachment files are saved beside notes; automatic Markdown insertion/inline local attachment preview is not implemented.
 - List/recent is capped at 1000 enumerated entries; not a complete large-vault index.
-- Existing web components remain, but Assistant endpoints are intentionally blocked. Some legacy navigation labels need cleanup.
+- Existing web components remain, but Assistant endpoints are intentionally blocked. Unused early drafts of the sidebar/top bar still live in `app/components/` and `components/*.backup`; nothing imports them, and they still contain their old mock copy.
 - Filesystem symlinks are refused in operations; not a sandbox against a hostile local process replacing directories concurrently. Concurrent-writer and crash-atomic-save guarantees need further review.
 - No auto-updater, Intel/Windows build or cloud sync in this preview.
 - A normal folder-dialog and install test on the target M2 is still required.

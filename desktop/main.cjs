@@ -1,11 +1,12 @@
-const { app, BrowserWindow, dialog, Menu } = require('electron');
+const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
 const { fork } = require('node:child_process');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const net = require('node:net');
 const { randomBytes } = require('node:crypto');
-let window, children = [], quitting = false;
+let window, children = [], quitting = false, vaultRoot;
 const token = randomBytes(32).toString('hex');
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 async function port() {
   const server = net.createServer();
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
@@ -20,49 +21,149 @@ async function ready(url, headers = {}) {
   }
   throw Error('The local service did not start.');
 }
-function start(script, env) {
+function start(script, env, onMessage) {
   const child = fork(script,[],{execPath:process.execPath,cwd:path.dirname(script),env:{...process.env,...env,ELECTRON_RUN_AS_NODE:'1'},stdio:['ignore','pipe','pipe','ipc']});
   // Do not record user file contents or paths in a persistent log.
   child.stderr.on('data',data=>console.error(String(data)));
   child.on('error',error=>{if(!quitting)dialog.showErrorBox('Personal Vault',error.message);});
   child.on('exit',code=>{if(!quitting){console.error('Service exited',code);if(!process.env.PV_DESKTOP_SMOKE_ROOT)dialog.showErrorBox('Personal Vault','A local service stopped unexpectedly. Please restart the app.');app.quit();}});
+  if(onMessage)child.on('message',message=>{Promise.resolve(onMessage(message)).catch(error=>console.error(error));});
   children.push(child);
 }
+
+// ------------------------------------------------------------------ onboarding
+// The first run explains the product before it asks for anything: no folder is
+// created, moved or imported until the user confirms one. These screens use
+// only the Electron modules imported above, so the renderer keeps its sandbox,
+// the web server keeps its token, and no preload or extra dependency is added.
+function ask(options) {
+  return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
+}
+function pickFolder(options) {
+  return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
+}
+const staysPut = 'Your files stay where they are. Nothing is moved or imported.';
+async function openExistingVault() {
+  const selected = await pickFolder({ title: 'Open an existing folder', message: staysPut, buttonLabel: 'Open', properties: ['openDirectory', 'createDirectory'] });
+  return selected.canceled || !selected.filePaths[0] ? null : selected.filePaths[0];
+}
+async function createNewVault() {
+  let target = path.join(app.getPath('documents'), 'Personal Vault');
+  for (;;) {
+    const choice = await ask({
+      type: 'info', title: 'Create a new Vault',
+      message: 'Create your Vault in this folder?',
+      detail: `${target}\n\nThe folder is created only if it is not there yet, and everything stays inside it.`,
+      buttons: ['Create Vault Here', 'Choose location…', 'Back'], defaultId: 0, cancelId: 2, noLink: true,
+    });
+    if (choice.response === 2) return null;
+    if (choice.response === 1) {
+      const selected = await pickFolder({ title: 'Choose where to create your Vault', message: staysPut, buttonLabel: 'Choose', defaultPath: app.getPath('documents'), properties: ['openDirectory', 'createDirectory'] });
+      if (!selected.canceled && selected.filePaths[0]) target = selected.filePaths[0];
+      continue; // Show the confirmed path again before anything is created.
+    }
+    try { await fs.mkdir(target, { recursive: true }); await fs.access(target); return target; }
+    catch (error) { dialog.showErrorBox('That folder could not be used', error.message); }
+  }
+}
+async function firstRunVault() {
+  for (;;) {
+    const choice = await ask({
+      type: 'info', title: 'Personal Vault',
+      message: 'Your notes and files, in your own folder.',
+      detail: 'Open them here, in Finder, or in any Markdown editor.',
+      buttons: ['Create a new Vault', 'Open an existing folder', 'Quit'], defaultId: 0, cancelId: 2, noLink: true,
+    });
+    if (choice.response === 2) return null;
+    const root = choice.response === 0 ? await createNewVault() : await openExistingVault();
+    if (root) return root;
+  }
+}
+async function chooseAnotherVault() {
+  for (;;) {
+    const choice = await ask({
+      type: 'question', title: 'Personal Vault',
+      message: 'Open another Vault?',
+      detail: 'Your current Vault stays open if you cancel. Notes are never moved between folders.',
+      buttons: ['Open an existing folder', 'Create a new Vault', 'Cancel'], defaultId: 0, cancelId: 2, noLink: true,
+    });
+    if (choice.response === 2) return null;
+    const root = choice.response === 0 ? await openExistingVault() : await createNewVault();
+    if (root) return root;
+  }
+}
+async function saveVaultSetting(root) {
+  await fs.mkdir(path.dirname(settingsFile()), { recursive: true });
+  await fs.writeFile(settingsFile(), JSON.stringify({ vaultRoot: root }, null, 2));
+}
+// Cancelling this leaves settings.json untouched, so the open Vault survives.
+async function switchVault() {
+  const chosen = await chooseAnotherVault();
+  if (!chosen) return;
+  let resolved;
+  try { resolved = await fs.realpath(chosen); } catch { return; }
+  if (resolved === vaultRoot) return;
+  await saveVaultSetting(resolved);
+  app.relaunch();
+  app.quit();
+}
+// Opens the folder the app selected in Finder. The renderer cannot name a path.
+async function revealVault() {
+  if (!vaultRoot) return;
+  const error = await shell.openPath(vaultRoot);
+  if (error) console.error('Could not open the Vault folder:', error);
+}
+// The bundled web server asks for these through POST /api/vault-info. It never
+// sends a path: the main process only ever reveals or opens the folder it owns.
+async function onWebServerMessage(message) {
+  if (!message || typeof message !== 'object') return;
+  if (message.type === 'vault:reveal') { await revealVault(); return; }
+  if (message.type === 'vault:choose') { await switchVault(); return; }
+}
+
 async function boot() {
-  const configFile=path.join(app.getPath('userData'),'settings.json');
   let root;
   if (process.env.PV_DESKTOP_SMOKE_ROOT) root=process.env.PV_DESKTOP_SMOKE_ROOT;
   else {
-    try { root=JSON.parse(await fs.readFile(configFile,'utf8')).vaultRoot;await fs.access(root); } catch {root=null;}
+    try { root=JSON.parse(await fs.readFile(settingsFile(),'utf8')).vaultRoot;await fs.access(root); } catch {root=null;}
     if (!root) {
-      const selected=await dialog.showOpenDialog({title:'Choose or create your Vault folder',properties:['openDirectory','createDirectory']});
-      if(selected.canceled){app.quit();return;}
-      root=selected.filePaths[0];
-      await fs.mkdir(path.dirname(configFile),{recursive:true});
-      await fs.writeFile(configFile,JSON.stringify({vaultRoot:root},null,2));
+      root=await firstRunVault();
+      if(!root){app.quit();return;}
+      await saveVaultSetting(root);
     }
   }
   root=await fs.realpath(root);
+  vaultRoot=root;
   const resources=app.isPackaged ? process.resourcesPath : path.join(__dirname,'..','.desktop-stage');
   const backendPort=await port(),uiPort=await port();
   const backendURL=`http://127.0.0.1:${backendPort}`;
   const uiURL=`http://127.0.0.1:${uiPort}`;
   start(path.join(resources,'vault','mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token});
   await ready(backendURL+'/status',{Authorization:`Bearer ${token}`});
-  start(path.join(resources,'web','server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'});
+  start(path.join(resources,'web','server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
   await ready(uiURL+'/api/files',{'x-vault-desktop-token':token});
   window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
   window.webContents.session.webRequest.onBeforeSendHeaders({urls:[uiURL+'/*']},(details,callback)=>callback({requestHeaders:{...details.requestHeaders,'x-vault-desktop-token':token}}));
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==uiURL)event.preventDefault();});
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{label:'Choose another Vault…',click:async()=>{await fs.rm(configFile,{force:true});app.relaunch();app.quit();}},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{label:'Open another Vault…',click:()=>{switchVault().catch(error=>console.error(error));}},{label:'Show Vault in Finder',click:()=>{revealVault().catch(error=>console.error(error));}},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
   await window.loadURL(uiURL);
   if(process.env.PV_DESKTOP_SMOKE_ROOT){
     const assert=require('node:assert/strict');
     assert.equal((await fetch(uiURL+'/api/files')).status,401);
-    assert.equal((await fetch(backendURL+'/status')).status,401);
+    // Readiness metadata is intentionally public on loopback; Vault operations
+    // remain protected by the bearer token on the MCP endpoint.
+    const backendStatus=await fetch(backendURL+'/status');
+    assert.equal(backendStatus.status,200);
+    const backendStatusBody=await backendStatus.json();
+    assert.equal(backendStatusBody.status,'ok');
+    assert.equal(backendStatusBody.server,'personal-vault');
     assert.equal((await fetch(uiURL+'/api/today',{headers:{'x-vault-desktop-token':token}})).status,404);
+    assert.equal((await fetch(uiURL+'/api/vault-info')).status,401);
+    const info=await fetch(uiURL+'/api/vault-info',{headers:{'x-vault-desktop-token':token}}).then(r=>r.json());
+    assert.equal(info.root,root);
+    assert.equal(info.name,path.basename(root));
     const invoke=async(operation,args)=>{
       const r=await fetch(uiURL+'/api/vault',{method:'POST',headers:{'Content-Type':'application/json','x-vault-desktop-token':token},body:JSON.stringify({operation,args})});
       const data=await r.json();assert.equal(r.ok,true,JSON.stringify(data));return data;
@@ -79,7 +180,7 @@ async function boot() {
     assert.equal(search.results[0].relativePath,file);
     const title=await window.webContents.executeJavaScript('document.title');
     assert.equal(title,'Personal Vault');
-    console.log('DESKTOP_SMOKE_OK: packaged window, UI -> MCP -> files, create/update/attach/search/archive/restore, auth');app.quit();
+    console.log('DESKTOP_SMOKE_OK: packaged window, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();
   }
 }
 if(process.env.PV_DESKTOP_SMOKE_ROOT) app.setPath('userData',path.join(process.env.PV_DESKTOP_SMOKE_ROOT,'.smoke-user-data'));

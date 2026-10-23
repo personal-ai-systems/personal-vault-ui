@@ -1,25 +1,25 @@
 'use client';
-import { 
-  Menu, 
-  Search, 
-  HelpCircle, 
-  Settings, 
-  Bell, 
-  User,
-  Grid,
-  Filter,
-  RefreshCw,
-  MoreVertical
-} from 'lucide-react';
+import { Search, Settings, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 interface TopAppBarProps {
   currentView?: string;
   onViewChange?: (view: any) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
+  onNewNote?: () => void;
 }
 
-export default function TopAppBar({ searchQuery, onSearchQueryChange }: TopAppBarProps) {
+export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote }: TopAppBarProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const close = (event: MouseEvent) => { if (!settingsRef.current?.contains(event.target as Node)) setSettingsOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [settingsOpen]);
 
   return (
     <header className="sticky top-0 z-40 bg-surface border-b border-border">
@@ -33,7 +33,7 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange }: TopAppBa
             </div>
             <div>
               <h1 className="text-lg font-medium text-on-surface">Personal Vault</h1>
-              <p className="text-xs text-on-surface-variant">Local-first AI memory system</p>
+              <p className="text-xs text-on-surface-variant">Your notes and files</p>
             </div>
           </div>
 
@@ -61,73 +61,46 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange }: TopAppBa
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          {/* Action buttons */}
-          <button 
-            className="p-2 rounded-lg hover:bg-surface-variant hidden md:flex items-center justify-center"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4 text-on-surface-variant" />
-          </button>
-          
-          <button 
-            className="p-2 rounded-lg hover:bg-surface-variant hidden md:flex items-center justify-center"
-            title="Filters"
-          >
-            <Filter className="w-4 h-4 text-on-surface-variant" />
-          </button>
-          
-          <button 
-            className="p-2 rounded-lg hover:bg-surface-variant hidden md:flex items-center justify-center"
-            title="View options"
-          >
-            <Grid className="w-4 h-4 text-on-surface-variant" />
-          </button>
-
           {/* Mobile search button */}
-          <button 
+          <button
             className="p-2 rounded-lg hover:bg-surface-variant md:hidden"
             title="Search"
           >
             <Search className="w-4 h-4 text-on-surface-variant" />
           </button>
 
-          {/* Notifications */}
-          <button 
-            className="p-2 rounded-lg hover:bg-surface-variant relative"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4 text-on-surface-variant" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
-          </button>
-
-          {/* Help */}
-          <button 
-            className="p-2 rounded-lg hover:bg-surface-variant hidden md:flex"
-            title="Help"
-          >
-            <HelpCircle className="w-4 h-4 text-on-surface-variant" />
-          </button>
-
-          {/* Settings */}
-          <button 
-            className="p-2 rounded-lg hover:bg-surface-variant"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4 text-on-surface-variant" />
-          </button>
-
-          {/* User menu */}
-          <div className="relative">
-            <button 
-              className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-surface-variant"
-              title="Account"
+          {/* Primary action: the one thing a note app should always offer. */}
+          {onNewNote && (
+            <button
+              onClick={onNewNote}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
+              title="New note"
             >
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-sm font-medium text-on-surface hidden lg:inline">Kirill</span>
-              <MoreVertical className="w-4 h-4 text-on-surface-variant hidden lg:inline" />
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New note</span>
             </button>
+          )}
+
+          {/* Settings: inert placeholder for the future AI/backup configuration screen. */}
+          <div className="relative" ref={settingsRef}>
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="p-2 rounded-lg hover:bg-surface-variant"
+              title="Settings"
+              aria-haspopup="menu"
+              aria-expanded={settingsOpen}
+            >
+              <Settings className="w-4 h-4 text-on-surface-variant" />
+            </button>
+            {settingsOpen && (
+              <div role="menu" className="absolute right-0 top-11 z-30 w-64 rounded-lg border border-border bg-surface shadow-lg p-3 text-sm">
+                <p className="font-medium text-on-surface">Settings</p>
+                <p className="mt-1 text-xs text-on-surface-variant">Coming soon.</p>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Nothing to configure yet — your notes stay in your own folder, with no account and no cloud.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

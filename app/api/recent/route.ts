@@ -1,4 +1,5 @@
 import { vault, document, failure } from '@/lib/vault-client';
+import { vaultRoot, vaultName } from '@/lib/desktop';
 export async function GET() {
   try {
     const data = await vault('list', { recursive: true, limit: 1000 });
@@ -7,6 +8,6 @@ export async function GET() {
       const d = await document(i.path);
       return { path: i.path, relativePath: i.path, name: i.path.split('/').pop(), size: i.sizeBytes, mtime: Date.parse(i.modifiedAt), category: 'Note', title: d.frontmatter.title || i.path.split('/').pop(), preview: d.content.slice(0,200), frontmatter: d.frontmatter };
     }));
-    return Response.json({ files, count: files.length, totalFiles: items.length, vaultRoot: 'Selected Vault' });
+    return Response.json({ files, count: files.length, totalFiles: items.length, vaultRoot: vaultName() ?? 'Selected Vault', vaultPath: vaultRoot() });
   } catch (error) { return failure(error); }
 }

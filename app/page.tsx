@@ -1,44 +1,100 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import ArchiveView from "@/components/ArchiveView";
 import FileBrowser from "@/components/FileBrowser";
 import RecentView from "@/components/RecentView";
 import SearchView from "@/components/SearchView";
 import Sidebar from "@/components/Sidebar";
 import TopAppBar from "@/components/TopAppBar";
-import NoteActions from "@/components/NoteActions";
+import { NewNoteDialog } from "@/components/NoteActions";
+
+type View = 'browse' | 'recent' | 'archive';
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<'resume' | 'browse' | 'recent'>('browse');
+  const [currentView, setCurrentView] = useState<View>('browse');
+  const [currentPath, setCurrentPath] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // A note the sidebar asked to open; FileBrowser consumes it and clears it.
+  const [openFile, setOpenFile] = useState<string | null>(null);
   const isSearching = searchQuery.trim().length > 0;
+
+  const refresh = useCallback(() => setRefreshKey((value) => value + 1), []);
+
+  // The folder tree and the file list both derive from this: it opens the note
+  // that was just written, whether it was created or restored.
+  const handlePathChange = useCallback((path: string) => setCurrentPath(path), []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        setNewNoteOpen(true);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const closeNewNote = useCallback(() => setNewNoteOpen(false), []);
 
   return (
     <>
       <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-        <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+        <Sidebar
+          currentView={currentView}
+          onViewChange={setCurrentView}
+          currentPath={currentPath}
+          onSelectPath={handlePathChange}
+          onSelectFile={setOpenFile}
+          refreshKey={refreshKey}
+          onRefresh={refresh}
+        />
         <div className="flex-1 flex flex-col overflow-hidden">
           <TopAppBar
             currentView={currentView}
             onViewChange={setCurrentView}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
+            onNewNote={() => setNewNoteOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto p-4 md:p-6">
-            <NoteActions />
+          <main className="flex-1 overflow-hidden">
             {isSearching ? (
               <SearchView query={searchQuery} />
-            ) : currentView === 'resume' ? (
-              <FileBrowser />
             ) : currentView === 'browse' ? (
-              <FileBrowser />
-            ) : (
+              <FileBrowser
+                path={currentPath}
+                onPathChange={handlePathChange}
+                onNewNote={() => setNewNoteOpen(true)}
+                refreshKey={refreshKey}
+                onChanged={refresh}
+                openFile={openFile}
+                onOpenedFile={() => setOpenFile(null)}
+              />
+            ) : currentView === 'recent' ? (
               <RecentView />
+            ) : (
+              <ArchiveView refreshKey={refreshKey} onChanged={refresh} />
             )}
           </main>
         </div>
       </div>
 
+      {newNoteOpen && (
+        <NewNoteDialog
+          folder={currentPath}
+          onClose={closeNewNote}
+          onCreated={(path) => {
+            closeNewNote();
+            const parts = path.split('/');
+            setCurrentPath(parts.slice(0, -1).join('/'));
+            setCurrentView('browse');
+            refresh();
+          }}
+        />
+      )}
     </>
   );
 }

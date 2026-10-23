@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import matter from 'gray-matter';
+import matter from './frontmatter';
 
 export async function vault(operation: string, args: Record<string, unknown> = {}) {
   const client = new Client({ name: 'personal-vault-ui', version: '0.1.0' });
@@ -8,7 +8,7 @@ export async function vault(operation: string, args: Record<string, unknown> = {
     await client.connect(new StreamableHTTPClientTransport(new URL(process.env.PERSONAL_VAULT_MCP_URL || 'http://127.0.0.1:8788/mcp'), {
       requestInit: { headers: process.env.PERSONAL_VAULT_TOKEN ? { Authorization: `Bearer ${process.env.PERSONAL_VAULT_TOKEN}` } : {} },
     }));
-    const result = await client.callTool({ name: `vault.files.${operation}`, arguments: args });
+    const result = await client.callTool({ name: `vault_files_${operation}`, arguments: args });
     if (result.isError) throw new Error(Array.isArray(result.content) ? result.content.map((item: any) => item.text || '').join(' ') : 'Vault operation failed');
     return result.structuredContent as any;
   } finally { await client.close(); }

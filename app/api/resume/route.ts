@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fsp from 'fs/promises';
 import path from 'path';
-import matter from 'gray-matter';
+import matter from '@/lib/frontmatter';
 
 const VAULT_ROOT = path.join(process.env.HOME || '', 'personal-vault');
 
