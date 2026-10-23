@@ -31,6 +31,35 @@ function start(script, env, onMessage) {
   children.push(child);
 }
 
+// Next.js writes a small route cache while it serves the UI. A packaged macOS
+// app is sealed, so even a harmless cache file inside Personal Vault.app makes
+// macOS treat the bundle as modified after its first launch. Run the web UI
+// from an app-managed working copy instead; the installed app stays untouched.
+async function writableWebRuntime(resources) {
+  const bundledWeb = path.join(resources, 'web');
+  if (!app.isPackaged) return bundledWeb;
+  let buildKey = app.getVersion();
+  try {
+    const buildInfo = JSON.parse(await fs.readFile(path.join(resources, 'build-info.json'), 'utf8'));
+    if (buildInfo.builtAt) buildKey += `-${buildInfo.builtAt}`;
+  } catch {}
+  buildKey = buildKey.replace(/[^a-zA-Z0-9._-]/g, '-');
+  const runtimeParent = path.join(app.getPath('userData'), 'runtime');
+  const runtimeRoot = path.join(runtimeParent, buildKey);
+  const runtimeWeb = path.join(runtimeRoot, 'web');
+  try { await fs.access(path.join(runtimeWeb, 'server.js')); return runtimeWeb; } catch {}
+  await fs.mkdir(runtimeParent, { recursive: true });
+  const temporaryRoot = path.join(runtimeParent, `.install-${buildKey}-${process.pid}-${randomBytes(4).toString('hex')}`);
+  try {
+    await fs.cp(bundledWeb, path.join(temporaryRoot, 'web'), { recursive: true });
+    await fs.rm(runtimeRoot, { recursive: true, force: true });
+    await fs.rename(temporaryRoot, runtimeRoot);
+  } finally {
+    await fs.rm(temporaryRoot, { recursive: true, force: true });
+  }
+  return runtimeWeb;
+}
+
 // ------------------------------------------------------------------ onboarding
 // The first run explains the product before it asks for anything: no folder is
 // created, moved or imported until the user confirms one. These screens use
@@ -135,12 +164,13 @@ async function boot() {
   root=await fs.realpath(root);
   vaultRoot=root;
   const resources=app.isPackaged ? process.resourcesPath : path.join(__dirname,'..','.desktop-stage');
+  const webRuntime=await writableWebRuntime(resources);
   const backendPort=await port(),uiPort=await port();
   const backendURL=`http://127.0.0.1:${backendPort}`;
   const uiURL=`http://127.0.0.1:${uiPort}`;
   start(path.join(resources,'vault','mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token});
   await ready(backendURL+'/status',{Authorization:`Bearer ${token}`});
-  start(path.join(resources,'web','server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
+  start(path.join(webRuntime,'server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
   await ready(uiURL+'/api/files',{'x-vault-desktop-token':token});
   window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
