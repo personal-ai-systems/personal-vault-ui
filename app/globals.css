@@ -47,14 +47,6 @@
   --shadow-lg: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px 0 rgba(60, 64, 67, 0.3);
   --shadow-xl: 0 4px 8px 3px rgba(60, 64, 67, 0.15), 0 1px 3px 0 rgba(60, 64, 67, 0.3);
   
-  /* More compact spacing */
-  --spacing-xs: 2px;
-  --spacing-sm: 4px;
-  --spacing-md: 6px;
-  --spacing-lg: 8px;
-  --spacing-xl: 12px;
-  --spacing-2xl: 16px;
-  --spacing-3xl: 24px;
 }
 
 @media (prefers-color-scheme: dark) {

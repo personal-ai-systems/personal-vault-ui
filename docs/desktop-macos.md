@@ -128,7 +128,7 @@ xcrun notarytool store-credentials \
 
 Submit an archive manually for a dry run:
 ```sh
-xcrun notarytool submit dist/Personal.Vault-0.1.0-arm64-mac.zip \
+xcrun notarytool submit "dist/Personal Vault-0.1.1-arm64-mac.zip" \
   --key /path/to/AuthKey_xxxxxxxxxx.p8 \
   --key-id xxxxxxxxxx \
   --issuer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
@@ -140,12 +140,13 @@ Staple after successful notarization:
 xcrun stapler staple "dist/mac-arm64/Personal Vault.app"
 ```
 
-## Verified locally on 2026-09-18
+## Verified locally on 2026-10-23
 
-- `npm run desktop:build`: exit 0; Next 16.3.5 production build; DMG and ZIP generated.
-- `npm run test:desktop`: exit 0 against the final packaged app; window title and full API/file journey verified.
+- `npm run desktop:build`: exit 0; Next 16.4.2 production build; DMG and ZIP generated.
+- `npm run test:desktop`: exit 0 against the final packaged app; the **New note** dialog rendered at 672 px and the full API/file journey passed.
 - `hdiutil verify`: DMG checksum VALID.
 - Executable identified as Mach-O arm64.
-- Backend regression tests and working-tree secret scan pass. Both npm audits report zero known vulnerabilities.
+- Backend regression tests pass. The production dependency audit and the packaged runtime audit report zero known vulnerabilities.
 - Child service processes absent after successful test exit.
-- No clean-machine installation, signing/notarization or manual native folder-dialog acceptance claimed.
+- The extracted ZIP and mounted read-only DMG both passed the packaged UI/file journey and retained a valid ad-hoc bundle signature after launch.
+- No Developer ID signing, Apple notarization or manual clean-machine folder-dialog acceptance claimed.

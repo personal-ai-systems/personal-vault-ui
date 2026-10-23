@@ -210,7 +210,23 @@ async function boot() {
     assert.equal(search.results[0].relativePath,file);
     const title=await window.webContents.executeJavaScript('document.title');
     assert.equal(title,'Personal Vault');
-    console.log('DESKTOP_SMOKE_OK: packaged window, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();
+    const newNoteButton=await window.webContents.executeJavaScript(`Boolean(document.querySelector('button[title="New note"]'))`);
+    assert.equal(newNoteButton,true);
+    await window.webContents.executeJavaScript(`document.querySelector('button[title="New note"]').click()`);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const newNoteDialog=await window.webContents.executeJavaScript(`(() => {
+      const dialog=document.querySelector('[role="dialog"][aria-label="New note"]');
+      return dialog ? {width:Math.round(dialog.getBoundingClientRect().width),text:dialog.textContent} : null;
+    })()`);
+    assert.ok(newNoteDialog,'The New note dialog did not open.');
+    assert.ok(newNoteDialog.width>=500,`The New note dialog collapsed to ${newNoteDialog.width}px.`);
+    assert.match(newNoteDialog.text,/Saved in .* plain Markdown file/s);
+    if(process.env.PV_DESKTOP_SMOKE_SCREENSHOT){
+      const screenshot=await window.webContents.capturePage();
+      await fs.writeFile(process.env.PV_DESKTOP_SMOKE_SCREENSHOT,screenshot.toPNG());
+    }
+    console.log(`DESKTOP_NEW_NOTE_OK: dialog width ${newNoteDialog.width}px`);
+    console.log('DESKTOP_SMOKE_OK: packaged window, visible New note dialog, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();
   }
 }
 if(process.env.PV_DESKTOP_SMOKE_ROOT) app.setPath('userData',path.join(process.env.PV_DESKTOP_SMOKE_ROOT,'.smoke-user-data'));
