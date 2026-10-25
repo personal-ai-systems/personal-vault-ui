@@ -8,6 +8,7 @@ import SearchView from "@/components/SearchView";
 import Sidebar from "@/components/Sidebar";
 import TopAppBar from "@/components/TopAppBar";
 import { NewNoteDialog } from "@/components/NoteActions";
+import { useOpenAIImport } from '@/lib/vault-info-client';
 
 type View = 'browse' | 'recent' | 'archive';
 
@@ -19,6 +20,7 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   // A note the sidebar asked to open; FileBrowser consumes it and clears it.
   const [openFile, setOpenFile] = useState<string | null>(null);
+  const openAIImport = useOpenAIImport();
   const isSearching = searchQuery.trim().length > 0;
 
   const refresh = useCallback(() => setRefreshKey((value) => value + 1), []);
@@ -39,6 +41,11 @@ export default function Home() {
   }, []);
 
   const closeNewNote = useCallback(() => setNewNoteOpen(false), []);
+  const importOpenAI = useCallback(async () => {
+    const imported = await openAIImport.run();
+    if (imported) refresh();
+    return imported;
+  }, [openAIImport.run, refresh]);
 
   return (
     <>
@@ -59,6 +66,9 @@ export default function Home() {
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             onNewNote={() => setNewNoteOpen(true)}
+            onImportOpenAI={importOpenAI}
+            importBusy={openAIImport.busy}
+            importMessage={openAIImport.message}
           />
           <main className="flex-1 overflow-hidden">
             {isSearching ? (
@@ -68,6 +78,9 @@ export default function Home() {
                 path={currentPath}
                 onPathChange={handlePathChange}
                 onNewNote={() => setNewNoteOpen(true)}
+                onImportOpenAI={importOpenAI}
+                importBusy={openAIImport.busy}
+                importMessage={openAIImport.message}
                 refreshKey={refreshKey}
                 onChanged={refresh}
                 openFile={openFile}

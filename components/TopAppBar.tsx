@@ -1,5 +1,5 @@
 'use client';
-import { Search, Settings, Plus } from 'lucide-react';
+import { Search, Settings, Plus, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface TopAppBarProps {
@@ -8,9 +8,12 @@ interface TopAppBarProps {
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onNewNote?: () => void;
+  onImportOpenAI?: () => Promise<boolean>;
+  importBusy?: boolean;
+  importMessage?: string | null;
 }
 
-export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote }: TopAppBarProps) {
+export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote, onImportOpenAI, importBusy = false, importMessage }: TopAppBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -81,7 +84,7 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote 
             </button>
           )}
 
-          {/* Settings: inert placeholder for the future AI/backup configuration screen. */}
+          {/* Settings also keeps import available after the first-run screen. */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
@@ -95,10 +98,19 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote 
             {settingsOpen && (
               <div role="menu" className="absolute right-0 top-11 z-30 w-64 rounded-lg border border-border bg-surface shadow-lg p-3 text-sm">
                 <p className="font-medium text-on-surface">Settings</p>
-                <p className="mt-1 text-xs text-on-surface-variant">Coming soon.</p>
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  Nothing to configure yet — your notes stay in your own folder, with no account and no cloud.
-                </p>
+                {onImportOpenAI && (
+                  <button
+                    role="menuitem"
+                    onClick={() => void onImportOpenAI()}
+                    disabled={importBusy}
+                    className="mt-2 w-full flex items-center gap-2 rounded-md border border-border px-3 py-2 text-left hover:bg-hover disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4 text-primary" />
+                    <span>{importBusy ? 'Importing…' : 'Import OpenAI data…'}</span>
+                  </button>
+                )}
+                {importMessage && <p role="status" className="mt-2 text-xs text-on-surface-variant">{importMessage}</p>}
+                <p className="mt-2 text-xs text-on-surface-variant">Your notes stay in your own folder, with no account and no cloud.</p>
               </div>
             )}
           </div>

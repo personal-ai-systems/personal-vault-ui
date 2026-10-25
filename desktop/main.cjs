@@ -1,8 +1,9 @@
-const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron');
 const { fork } = require('node:child_process');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const net = require('node:net');
+const { pathToFileURL } = require('node:url');
 const { randomBytes } = require('node:crypto');
 let window, children = [], quitting = false, vaultRoot;
 const token = randomBytes(32).toString('hex');
@@ -142,6 +143,68 @@ async function revealVault() {
   const error = await shell.openPath(vaultRoot);
   if (error) console.error('Could not open the Vault folder:', error);
 }
+
+function runOpenAIImporter(script, inputPath, root) {
+  return new Promise((resolve, reject) => {
+    const child = fork(script, [inputPath, '--vault', root, '--json'], {
+      execPath: process.execPath,
+      cwd: path.dirname(path.dirname(script)),
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    });
+    let output = '', errors = '';
+    child.stdout.on('data', (data) => { output += String(data); });
+    child.stderr.on('data', (data) => { errors += String(data); });
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code !== 0) { reject(new Error(errors.trim() || `Import stopped with code ${code}.`)); return; }
+      try { resolve(JSON.parse(output.trim())); }
+      catch { reject(new Error('The importer returned an unreadable result.')); }
+    });
+    children.push(child);
+  });
+}
+
+async function importOpenAI() {
+  if (!window || !vaultRoot) return { ok: false, error: 'No Vault is open.' };
+  const selected = await dialog.showOpenDialog(window, {
+    title: 'Import OpenAI data',
+    message: 'Choose the ZIP downloaded from OpenAI, or its conversations.json file.',
+    buttonLabel: 'Import conversations',
+    defaultPath: app.getPath('downloads'),
+    properties: ['openFile'],
+    filters: [
+      { name: 'OpenAI export', extensions: ['zip', 'json'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (selected.canceled || !selected.filePaths[0]) return { ok: false, canceled: true };
+  try {
+    const resources = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', '.desktop-stage');
+    const result = await runOpenAIImporter(path.join(resources, 'vault', 'scripts', 'import-openai-export.mjs'), selected.filePaths[0], vaultRoot);
+    await ask({
+      type: 'info',
+      title: 'OpenAI import complete',
+      message: result.imported === 1 ? 'Imported 1 conversation.' : `Imported ${result.imported} conversations.`,
+      detail: result.skipped
+        ? `${result.skipped} conversation${result.skipped === 1 ? ' was' : 's were'} already in this Vault and skipped. Your conversations are readable Markdown files inside raw/year/month.`
+        : 'Your conversations are now readable Markdown files inside raw/year/month.',
+      buttons: ['Done'],
+      defaultId: 0,
+      noLink: true,
+    });
+    return { ok: true, ...result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox('OpenAI import failed', message);
+    return { ok: false, error: message };
+  }
+}
+
+ipcMain.handle('vault:import-openai', (event) => {
+  if (!window || event.sender !== window.webContents) return { ok: false, error: 'Import request was refused.' };
+  return importOpenAI();
+});
 // The bundled web server asks for these through POST /api/vault-info. It never
 // sends a path: the main process only ever reveals or opens the folder it owns.
 async function onWebServerMessage(message) {
@@ -172,7 +235,7 @@ async function boot() {
   await ready(backendURL+'/status',{Authorization:`Bearer ${token}`});
   start(path.join(webRuntime,'server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
   await ready(uiURL+'/api/files',{'x-vault-desktop-token':token});
-  window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
+  window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
   window.webContents.session.webRequest.onBeforeSendHeaders({urls:[uiURL+'/*']},(details,callback)=>callback({requestHeaders:{...details.requestHeaders,'x-vault-desktop-token':token}}));
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
@@ -181,6 +244,29 @@ async function boot() {
   await window.loadURL(uiURL);
   if(process.env.PV_DESKTOP_SMOKE_ROOT){
     const assert=require('node:assert/strict');
+    for(let attempt=0;attempt<100;attempt++){
+      const ready=await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).some(button=>button.textContent.includes('1. Import OpenAI data'))`);
+      if(ready)break;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    const importFirst=await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).some(button=>button.textContent.includes('1. Import OpenAI data'))`);
+    assert.equal(importFirst,true,'The empty Vault did not show OpenAI import as its first action.');
+    const preloadImport=await window.webContents.executeJavaScript(`typeof window.personalVault?.importOpenAI`);
+    assert.equal(preloadImport,'function','The packaged renderer cannot reach the native OpenAI importer.');
+    if(process.env.PV_DESKTOP_SMOKE_ONBOARDING_SCREENSHOT){
+      const onboardingScreenshot=await window.webContents.capturePage();
+      await fs.writeFile(process.env.PV_DESKTOP_SMOKE_ONBOARDING_SCREENSHOT,onboardingScreenshot.toPNG());
+    }
+    const smokeExport=path.join(app.getPath('temp'),`personal-vault-openai-smoke-${process.pid}.json`);
+    try {
+      const timestamp=Date.UTC(2026,9,25,0,0,0)/1000;
+      await fs.writeFile(smokeExport,JSON.stringify([{id:'desktop-smoke-openai',title:'Packaged import',create_time:timestamp,current_node:'answer',mapping:{question:{id:'question',parent:null,message:{author:{role:'user'},create_time:timestamp,content:{parts:['Keep this readable.']}}},answer:{id:'answer',parent:'question',message:{author:{role:'assistant'},create_time:timestamp+1,content:{parts:['Saved as Markdown.']}}}}}]));
+      const resources=app.isPackaged ? process.resourcesPath : path.join(__dirname,'..','.desktop-stage');
+      const importer=await import(pathToFileURL(path.join(resources,'vault','scripts','import-openai-export.mjs')).href);
+      const imported=await importer.importOpenAIExport({inputPath:smokeExport,vaultRoot:root});
+      assert.equal(imported.imported,1);
+      assert.match(await fs.readFile(path.join(root,imported.files[0]),'utf8'),/## Assistant\n\nSaved as Markdown\./);
+    } finally { await fs.rm(smokeExport,{force:true}); }
     assert.equal((await fetch(uiURL+'/api/files')).status,401);
     // Readiness metadata is intentionally public on loopback; Vault operations
     // remain protected by the bearer token on the MCP endpoint.
@@ -225,6 +311,7 @@ async function boot() {
       const screenshot=await window.webContents.capturePage();
       await fs.writeFile(process.env.PV_DESKTOP_SMOKE_SCREENSHOT,screenshot.toPNG());
     }
+    console.log('DESKTOP_OPENAI_IMPORT_OK: first onboarding action and native bridge are available');
     console.log(`DESKTOP_NEW_NOTE_OK: dialog width ${newNoteDialog.width}px`);
     console.log('DESKTOP_SMOKE_OK: packaged window, visible New note dialog, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();
   }

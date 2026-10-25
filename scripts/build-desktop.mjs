@@ -15,8 +15,10 @@ await cp(path.join(root,'.next/standalone'),path.join(stage,'web'),{recursive:tr
 await cp(path.join(root,'.next/static'),path.join(stage,'web/.next/static'),{recursive:true});
 await cp(path.join(root,'public'),path.join(stage,'web/public'),{recursive:true});
 await mkdir(path.join(stage,'vault/mcp'),{recursive:true});
+await mkdir(path.join(stage,'vault/scripts'),{recursive:true});
 for(const name of ['package.json','package-lock.json','LICENSE'])await cp(path.join(vault,name),path.join(stage,'vault',name));
 await cp(path.join(vault,'mcp/personal-vault-server.mjs'),path.join(stage,'vault/mcp/personal-vault-server.mjs'));
+await cp(path.join(vault,'scripts/import-openai-export.mjs'),path.join(stage,'vault/scripts/import-openai-export.mjs'));
 run('npm',['ci','--omit=dev','--ignore-scripts'],path.join(stage,'vault'));
 const developerSigningEnabled=process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'true' || Boolean(process.env.CSC_LINK);
 await writeFile(path.join(stage,'build-info.json'),JSON.stringify({platform:'darwin',arch:'arm64',builtAt:new Date().toISOString(),signed:developerSigningEnabled},null,2));

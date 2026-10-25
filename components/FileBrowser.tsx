@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, FileText, Folder, FolderOpen, File, FileCode, FileImage, FileArchive, FileVideo, FileAudio, LoaderCircle, Plus, ExternalLink } from 'lucide-react';
+import { ChevronRight, FileText, Folder, FolderOpen, File, FileCode, FileImage, FileArchive, FileVideo, FileAudio, LoaderCircle, Plus, ExternalLink, Upload } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import NoteActions from './NoteActions';
 import { useVaultActions, useVaultInfo } from '@/lib/vault-info-client';
@@ -25,6 +25,9 @@ interface FileBrowserProps {
   path: string;
   onPathChange: (path: string) => void;
   onNewNote: () => void;
+  onImportOpenAI: () => Promise<boolean>;
+  importBusy?: boolean;
+  importMessage?: string | null;
   /** Bumped by the page after any write so the listing re-reads the disk. */
   refreshKey?: number;
   onChanged?: () => void;
@@ -34,7 +37,7 @@ interface FileBrowserProps {
   onOpenedFile?: () => void;
 }
 
-export default function FileBrowser({ path, onPathChange, onNewNote, refreshKey = 0, onChanged, openFile, onOpenedFile }: FileBrowserProps) {
+export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpenAI, importBusy = false, importMessage, refreshKey = 0, onChanged, openFile, onOpenedFile }: FileBrowserProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -309,32 +312,37 @@ export default function FileBrowser({ path, onPathChange, onNewNote, refreshKey 
             </div>
           )}
 
-          {/* First-run empty state: two clear next steps instead of "Empty directory". */}
+          {/* First-run empty state: bring existing memory first, then start fresh. */}
           {isEmpty && (
             <div className="p-8 text-center max-w-md mx-auto">
               <EmptyVaultIllustration />
               <h2 className="mt-4 text-lg font-medium text-on-surface">Your Vault is ready</h2>
-              <p className="mt-1 text-sm text-on-surface-variant">
-                It is just a folder of Markdown files. Create a note here, or add files to
-                {' '}<span className="font-mono">{info?.root || 'your folder'}</span>{' '}
-                in Finder — nothing is imported or copied for you.
-              </p>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <p className="mt-1 text-sm text-on-surface-variant">Bring your existing AI conversations with you, or start with a new note. Everything is saved as readable Markdown.</p>
+              <div className="mt-5 grid gap-2 text-left">
+                <button
+                  onClick={() => void onImportOpenAI()}
+                  disabled={importBusy}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark disabled:opacity-50"
+                >
+                  {importBusy ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                  <span><span className="block">1. Import OpenAI data</span><span className="block text-xs font-normal opacity-80">Choose the ZIP from ChatGPT and turn conversations into .md files</span></span>
+                </button>
                 <button
                   onClick={onNewNote}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border text-sm font-medium hover:bg-hover"
                 >
-                  <Plus className="w-4 h-4" /> Create your first note
+                  <Plus className="w-5 h-5 text-primary" /> <span>2. Create your first note</span>
                 </button>
                 <button
                   onClick={() => void runDesktopAction('reveal')}
                   disabled={!info?.root}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-border text-sm hover:bg-hover disabled:opacity-50"
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border text-sm font-medium hover:bg-hover disabled:opacity-50"
                 >
-                  <ExternalLink className="w-4 h-4" /> Add files in Finder…
+                  <ExternalLink className="w-5 h-5 text-primary" /> <span>3. Add files in Finder…</span>
                 </button>
               </div>
-              <p className="mt-3 text-xs text-on-surface-variant">Your files stay where they are. Nothing is moved or imported.</p>
+              <p className="mt-3 text-xs text-on-surface-variant">Saved in <span className="font-mono">{info?.root || 'your folder'}</span>. The import copies conversations into your Vault; it does not change the OpenAI export.</p>
+              {importMessage && <p role="status" className="mt-2 text-xs text-primary">{importMessage}</p>}
               {desktopMessage && <p role="status" className="mt-2 text-xs text-on-surface-variant">{desktopMessage}</p>}
             </div>
           )}

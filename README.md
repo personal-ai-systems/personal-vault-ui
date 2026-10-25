@@ -31,7 +31,10 @@ For Macs with an Apple M-series chip. Intel Macs and Windows are not supported b
 1. Open the DMG and drag **Personal Vault** into **Applications**.
 2. Open the app. This preview is ad-hoc signed but is not Developer ID signed or notarized: macOS may block it. If you choose to proceed, use **System Settings → Privacy & Security → Open Anyway** after the first launch attempt. A new preview build may require this approval again. Do not disable macOS security globally.
 3. Create a new Vault or open an existing folder. Personal Vault does not move or import anything automatically.
-4. Create a note, attach a file, search for it, and try archiving and restoring it.
+4. To bring your ChatGPT history with you, choose **1. Import OpenAI data** and select the ZIP downloaded from **ChatGPT → Settings → Data controls → Export data**. Each conversation becomes a readable `.md` file under `raw/year/month`.
+5. Or create a note, attach a file, search for it, and try archiving and restoring it.
+
+The OpenAI import is also available later under **Settings → Import OpenAI data**. Re-importing the same export skips conversations already in the Vault. The current importer converts conversation text; files and images referenced inside conversations remain in the original export. See [OpenAI's data export guide](https://help.openai.com/en/articles/7260999-exporting-your-chatgpt-history-and-data) for how to request the ZIP.
 
 This is an early test version, with rough edges. Start with copies of files you can afford to lose. Cloud backup/sync and automatic app updates are not included.
 
