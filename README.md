@@ -24,7 +24,7 @@ Personal Vault does not bundle model subscriptions or automatically connect ever
 
 ## Try the early preview
 
-**[Download for Mac — Apple Silicon (.dmg)](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.1.1-preview.4/Personal.Vault-0.1.1-arm64.dmg)**
+**[Download for Mac — Apple Silicon (.dmg)](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.2.0-preview.1/Personal.Vault-0.2.0-arm64.dmg)**
 
 For Macs with an Apple M-series chip. Intel Macs and Windows are not supported by this build.
 
@@ -40,7 +40,7 @@ This is an early test version, with rough edges. Start with copies of files you 
 
 **[Report a problem or suggest an improvement](https://github.com/personal-ai-systems/personal-vault-ui/issues)** — tell us what you tried, what happened, and your macOS version. Please leave private notes and personal information out of reports and screenshots.
 
-[Release notes and ZIP download](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.1.1-preview.4)
+[Release notes and ZIP download](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.2.0-preview.1)
 
 ## For developers
 
