@@ -1,6 +1,18 @@
 # macOS Apple Silicon preview
 
-Status: **internal verification/testing only**. Repositories remain private. Do not distribute the preview release publicly.
+Status: **public early preview**, not a production release. Vault and UI source
+repositories are public. New archives require tests and separate publication;
+local preparation does not update an existing GitHub download.
+
+The local `0.2.1-preview.1` preparation uses Vault revision `71e5c0d`: typed
+file operations, attachment-safe note renames and stricter metadata paths.
+This version is not a GitHub release until its tested archives are published.
+
+Local verification, 26 October 2026: `desktop:build`, packaged `test:desktop`,
+post-launch signature verification, ZIP integrity and DMG checksum checks passed.
+The bundled Vault ref is `71e5c0d`. External-Chrome review and installation on a
+second Mac were not performed for this build. It remains ad-hoc signed and not
+notarized. No GitHub assets were replaced by local preparation.
 
 ## How the two repositories connect
 
@@ -61,7 +73,9 @@ By default no Apple credentials are required and no codesigning identity is used
 npm run desktop:build
 ```
 
-`CSC_IDENTITY_AUTO_DISCOVERY=false` is set inside the build script so electron-builder skips Developer ID signing. The `afterSign` notarization hook also checks for credentials and skips notarization when none are present. This keeps the existing internal verification path intact while the repo is private.
+`CSC_IDENTITY_AUTO_DISCOVERY=false` makes electron-builder skip Developer ID
+signing. The notarization hook skips without credentials. This allows local
+verification, but does not remove Gatekeeper warnings for downloaded previews.
 
 ### Signed and notarized release build
 
@@ -102,7 +116,9 @@ Alternative methods if the above does not appear:
 
 Select a NEW empty test folder first. Node, Terminal, MCP clients and developer checkouts are not needed at runtime.
 
-> Do not ask testers to disable Gatekeeper globally (`spctl --master-disable`). Developer ID signing and Apple notarization are required only for a frictionless, double-click install for nontechnical users; they are **not** required for the current private verification stage with willing testers.
+> Do not ask testers to disable Gatekeeper globally (`spctl --master-disable`).
+> The preview is not Developer ID signed or notarized. Testers may encounter
+> warnings; never describe the manual workaround as equivalent to notarization.
 
 ## Verification
 
@@ -120,11 +136,14 @@ Select a NEW empty test folder first. Node, Terminal, MCP clients and developer 
 - Filesystem symlinks are refused in operations; not a sandbox against a hostile local process replacing directories concurrently. Concurrent-writer and crash-atomic-save guarantees need further review.
 - No auto-updater, Intel/Windows build or cloud sync in this preview.
 - A normal folder-dialog and install test on the target M2 is still required.
-- Developer ID signing + notarization are **not** blockers for private testing; they are only prerequisites for a frictionless public/nontechnical release.
+- Developer ID signing and notarization remain release-readiness work; current
+  preview testing does not prove frictionless installation on another Mac.
 
 ## Apple Developer Program prerequisites (for a frictionless public release)
 
-The project cannot sign or notarize with fabricated credentials. Apple Developer Program enrollment is **not required** for the current private verification stage with testers who are willing to use the right-click → Open workaround above. It becomes necessary only when you want a frictionless double-click install for nontechnical users or any broader distribution.
+The project cannot sign or notarize without genuine Apple credentials. Local
+ad-hoc testing can continue, but downloaded previews still need the documented
+manual approval. Do not promise that approval carries over to a changed build.
 
 Before that public macOS release, the Apple account owner must:
 

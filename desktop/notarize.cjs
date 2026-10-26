@@ -22,9 +22,8 @@ module.exports = async function(context) {
   const hasAppleId = Boolean(appleId && appleIdPassword && teamId);
 
   if (!hasApiKey && !hasAppleId) {
-    // No credentials => skip notarization. This keeps the existing unsigned
-    // local build path working while the repo is private and credentials are
-    // not yet provisioned.
+    // No credentials => skip notarization. Local ad-hoc previews can be tested,
+    // but this does not provide Developer ID signing or notarization.
     console.warn('[notarize] Skipping: no Apple notarization credentials in environment.');
     return;
   }
