@@ -4,6 +4,62 @@ Status: **public early preview**, not a production release. Vault and UI source
 repositories are public. New archives require tests and separate publication;
 local preparation does not update an existing GitHub download.
 
+## Current QA build — 0.2.1-preview.2, 26 October 2026
+
+Vault revision: `af344aa`. Prepared locally; no GitHub release was replaced.
+
+Fixed and regression-tested:
+
+- Files use last-modified time, newest first, in both list and sidebar. Calendar
+  folders use newest first; ordinary folder names remain alphabetical.
+- Real desktop writes no longer fail with `Invalid origin` when Next normalizes
+  its internal URL to localhost. Token checks and foreign-Origin rejection remain.
+- Recent scans folders instead of truncating the entire Vault at 1000 entries.
+  Archives and adjacent attachment folders are excluded. A single folder at the
+  1000-entry cap produces an explicit incomplete-list warning, not a false claim.
+- Attaching a file adds a readable Markdown link. Relative images and note links
+  resolve from the note's folder. Binary previews use a bounded generic MCP read.
+- Newly created notes open during search, sidebar navigation clears search,
+  duplicate names do not overwrite, and edit controls wait for note content.
+- Search results carry real metadata. Download/copy preserve original Markdown,
+  including frontmatter. Preview closes with Escape.
+- Settings shows the app version and its current loopback MCP address; that
+  address is available on this Mac while the app runs and changes on restart.
+
+Evidence: `npm test` (including an 1800-note Recent fixture), source typecheck,
+`desktop:build`, and the packaged `test:desktop` suite passed. The native rendered
+suite clicks list/tree navigation, linked notes, new note during search, duplicate
+save, edit/save, image attachment, archive/restore, Recent/Archive/Settings,
+preview/download and close. Download bytes equal the original Markdown. Copy
+payload is checked with a renderer clipboard stub; the user's clipboard is not
+changed. A separate SDK client discovers the packaged MCP tools and reads the
+saved fixture note. Binary preview without the UI token is rejected; a foreign
+Origin is rejected even with the token. Post-launch signature, ZIP integrity and
+DMG checksum checks passed. All automated writes use temporary Vaults/settings.
+
+Native macOS inspection of the installed app's Open another Vault chooser and
+Escape cancellation left its saved folder configuration byte-for-byte unchanged.
+Its existing Vault reopening is expected upgrade behaviour, not an automatic
+import or migration. A read-only SDK connection to its own dynamic MCP port also
+succeeded; it was not confused with the separate port-8788 service.
+
+Limits: a second Mac and the successful native import-picker journey were not
+tested in this run (conversion/import and native bridge are tested separately).
+External-web-link browser acceptance remains pending. Larger-than-10-MiB preview
+files need Finder. This build does not add remote/mobile hosting, internet file
+sharing, encrypted restore drills or unsaved-draft protection on app exit.
+Legacy Assistant-shaped MCP tools remain compatibility debt; this additive
+preview operation does not remove them or claim a strict Assistant-free surface.
+
+Archives in `dist/`:
+
+- `Personal Vault-0.2.1-preview.2-arm64-mac.zip`: SHA-256
+  `991bd4de15d1c03d221af1785fea1b9e32d4f81390505f5ca27c8d7f1a67b2ef`.
+- `Personal Vault-0.2.1-preview.2-arm64.dmg`: SHA-256
+  `18cb8fd4478d13c088e857196f17b65ba381b80baa12f75396f40fc48597130f`.
+
+## Earlier local preparation
+
 The local `0.2.1-preview.1` preparation uses Vault revision `71e5c0d`: typed
 file operations, attachment-safe note renames and stricter metadata paths.
 This version is not a GitHub release until its tested archives are published.

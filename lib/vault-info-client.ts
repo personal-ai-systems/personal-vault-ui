@@ -6,6 +6,8 @@ export interface VaultInfo {
   root: string | null;
   name: string | null;
   desktop: boolean;
+  mcpEndpoint?: string | null;
+  appVersion?: string | null;
 }
 
 async function request(method: 'GET' | 'POST', body?: object): Promise<any> {

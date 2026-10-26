@@ -237,13 +237,16 @@ async function boot() {
   const uiURL=`http://127.0.0.1:${uiPort}`;
   start(path.join(vaultPackageDir(resources),'mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token});
   await ready(backendURL+'/status',{Authorization:`Bearer ${token}`});
-  start(path.join(webRuntime,'server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
+  start(path.join(webRuntime,'server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_APP_VERSION:app.getVersion(),PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
   await ready(uiURL+'/api/files',{'x-vault-desktop-token':token});
-  window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
+  window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT || process.env.PV_DESKTOP_SMOKE_SHOW === '1',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   window.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
   window.webContents.session.webRequest.onBeforeSendHeaders({urls:[uiURL+'/*']},(details,callback)=>callback({requestHeaders:{...details.requestHeaders,'x-vault-desktop-token':token}}));
-  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
-  window.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==uiURL)event.preventDefault();});
+  const openWebLink = (url) => {
+    try { if (['https:', 'http:'].includes(new URL(url).protocol)) void shell.openExternal(url); } catch {}
+  };
+  window.webContents.setWindowOpenHandler(({url})=>{openWebLink(url);return {action:'deny'};});
+  window.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==uiURL){event.preventDefault();openWebLink(url);}});
   Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{label:'Open another Vault…',click:()=>{switchVault().catch(error=>console.error(error));}},{label:'Show Vault in Finder',click:()=>{revealVault().catch(error=>console.error(error));}},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
   await window.loadURL(uiURL);
   if(process.env.PV_DESKTOP_SMOKE_ROOT){
@@ -315,6 +318,7 @@ async function boot() {
       const screenshot=await window.webContents.capturePage();
       await fs.writeFile(process.env.PV_DESKTOP_SMOKE_SCREENSHOT,screenshot.toPNG());
     }
+    await require('./qa-smoke.cjs')(window, { root, invoke, uiURL, backendURL, token, resources });
     console.log('DESKTOP_OPENAI_IMPORT_OK: first onboarding action and native bridge are available');
     console.log(`DESKTOP_NEW_NOTE_OK: dialog width ${newNoteDialog.width}px`);
     console.log('DESKTOP_SMOKE_OK: packaged window, visible New note dialog, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();

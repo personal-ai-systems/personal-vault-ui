@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, FileText, Folder, FolderOpen, LoaderCircle } from 'lucide-react';
+import { newestFirst, folderOrder } from '@/lib/file-order.mjs';
 
 interface Entry {
   name: string;
   relativePath: string;
+  mtime?: number;
 }
 
 interface DirectoryListing {
@@ -27,10 +29,9 @@ async function listDirectory(path: string): Promise<DirectoryListing> {
   const response = await fetch(`/api/files${params}`);
   const data = await response.json();
   if (!response.ok || data.error) throw new Error(data.error || 'Could not list this folder.');
-  const sort = (a: Entry, b: Entry) => a.name.localeCompare(b.name, undefined, { numeric: true });
   return {
-    directories: (data.directories || []).map((d: any) => ({ name: d.name, relativePath: d.relativePath })).sort(sort),
-    files: (data.files || []).map((f: any) => ({ name: f.name, relativePath: f.relativePath })).sort(sort),
+    directories: (data.directories || []).map((d: any) => ({ name: d.name, relativePath: d.relativePath })).sort(folderOrder),
+    files: (data.files || []).map((f: any) => ({ name: f.name, relativePath: f.relativePath, mtime: f.mtime })).sort(newestFirst),
   };
 }
 

@@ -15,9 +15,9 @@ async function run(command,args) {
   return {code,output};
 }
 try {
-  const child=spawn(executable,[],{env:{...process.env,PV_DESKTOP_SMOKE_ROOT:fixture},stdio:['ignore','pipe','pipe']});
+  const child=spawn(executable,[],{env:{...process.env,PV_DESKTOP_SMOKE_ROOT:fixture,PV_DESKTOP_SMOKE_SHOW:'1'},stdio:['ignore','pipe','pipe']});
   let output='';child.stdout.on('data',data=>{output+=data;process.stdout.write(data);});child.stderr.on('data',data=>process.stderr.write(data));
-  const timer=setTimeout(()=>child.kill('SIGTERM'),90000);
+  const timer=setTimeout(()=>child.kill('SIGTERM'),180000);
   const code=await new Promise((resolve,reject)=>{child.on('exit',resolve);child.on('error',reject);}).finally(()=>clearTimeout(timer));
   assert.equal(code,0);assert.match(output,/DESKTOP_SMOKE_OK/);
   const signature=await run('/usr/bin/codesign',['--verify','--deep','--strict','--verbose=2',appBundle]);

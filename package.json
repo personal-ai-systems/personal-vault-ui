@@ -1,8 +1,9 @@
 {
   "name": "personal-vault-ui",
-  "version": "0.2.1-preview.1",
+  "version": "0.2.1-preview.2",
   "private": true,
   "scripts": {
+    "test": "node scripts/test-ui-rules.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -55,6 +56,7 @@
     },
     "files": [
       "desktop/main.cjs",
+      "desktop/qa-smoke.cjs",
       "desktop/preload.cjs",
       "package.json",
       "!node_modules/**/*"

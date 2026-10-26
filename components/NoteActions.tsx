@@ -200,7 +200,17 @@ export default function NoteActions({ path, rawContent, onChanged }: NoteActions
                 reader.onerror = () => reject(new Error('The file could not be read.'));
                 reader.readAsDataURL(file);
               });
-              await run('attach', { markdownPath: path, name: file.name, dataBase64 }, `Attached ${file.name}`);
+              setBusy(true); setError(null);
+              try {
+                const asset = await callVault('attach', { markdownPath: path, name: file.name, dataBase64 });
+                const name = String(asset.assetPath).split('/').pop() || file.name;
+                const folder = String(asset.assetPath).split('/').slice(-2, -1)[0];
+                const relative = `./${encodeURIComponent(folder)}/${encodeURIComponent(name)}`;
+                const label = file.name.replace(/[\[\]\r\n]/g, ' ');
+                await callVault('update', { path, content: `${rawContent}\n${file.type.startsWith('image/') ? '!' : ''}[${label}](${relative})\n` });
+                onChanged(`Attached ${file.name}`, path);
+              } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+              finally { setBusy(false); }
             }}
           />
         </label>

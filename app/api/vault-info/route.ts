@@ -5,7 +5,7 @@ import { vaultName, vaultRoot, desktopRequest } from '@/lib/desktop';
 // never exposed to an unauthenticated caller.
 export async function GET() {
   const root = vaultRoot();
-  return Response.json({ root: root ?? null, name: root ? vaultName() : null, desktop: Boolean(process.send) });
+  return Response.json({ root: root ?? null, name: root ? vaultName() : null, desktop: Boolean(process.send), mcpEndpoint: process.env.PERSONAL_VAULT_MCP_URL || null, appVersion: process.env.PERSONAL_VAULT_APP_VERSION || null });
 }
 
 export async function POST(request: NextRequest) {

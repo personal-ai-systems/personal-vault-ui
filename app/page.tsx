@@ -27,7 +27,18 @@ export default function Home() {
 
   // The folder tree and the file list both derive from this: it opens the note
   // that was just written, whether it was created or restored.
-  const handlePathChange = useCallback((path: string) => setCurrentPath(path), []);
+  const handlePathChange = useCallback((path: string) => { setSearchQuery(''); setCurrentPath(path); }, []);
+
+  useEffect(() => {
+    const openLinkedNote = (event: Event) => {
+      const note = (event as CustomEvent<string>).detail;
+      if (!note) return;
+      setSearchQuery(''); setCurrentView('browse');
+      setCurrentPath(note.split('/').slice(0, -1).join('/')); setOpenFile(note);
+    };
+    window.addEventListener('vault:open-note', openLinkedNote);
+    return () => window.removeEventListener('vault:open-note', openLinkedNote);
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -52,7 +63,7 @@ export default function Home() {
       <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
         <Sidebar
           currentView={currentView}
-          onViewChange={setCurrentView}
+          onViewChange={(view) => { setSearchQuery(''); setCurrentView(view); }}
           currentPath={currentPath}
           onSelectPath={handlePathChange}
           onSelectFile={setOpenFile}
@@ -101,6 +112,8 @@ export default function Home() {
           onClose={closeNewNote}
           onCreated={(path) => {
             closeNewNote();
+            setSearchQuery('');
+            setOpenFile(path);
             const parts = path.split('/');
             setCurrentPath(parts.slice(0, -1).join('/'));
             setCurrentView('browse');

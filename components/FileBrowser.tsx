@@ -78,6 +78,10 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
     setContentLoading(true);
     setContentError(null);
     try {
+      if (!/\.(md|txt|json|jsonl|csv|ya?ml)$/i.test(filePath)) {
+        setFileContent({ assetURL: '/api/assets/' + filePath.split('/').map(encodeURIComponent).join('/'), image: /\.(png|jpe?g|gif|webp)$/i.test(filePath) });
+        return;
+      }
       const encodedPath = encodeURIComponent(filePath);
       const response = await fetch(`/api/files/${encodedPath}`);
       const data = await response.json();
@@ -122,6 +126,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
   };
 
   const handleBreadcrumbClick = (index: number) => {
+    handleClosePanel();
     if (index < 0) { onPathChange(''); return; }
     const parts = path.split('/').filter(p => p);
     onPathChange(parts.slice(0, index + 1).join('/'));
@@ -221,7 +226,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col">
         {/* Breadcrumbs */}
         <div className="px-4 py-2 border-b border-border bg-surface-variant/50">
           <div className="flex items-center text-sm">
@@ -244,7 +249,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
         </div>
 
         {/* File list */}
-        <div className="overflow-auto" style={{ height: 'calc(100vh - 300px)' }}>
+        <div className="overflow-auto flex-1 min-h-0">
           {loading ? (
             <div className="p-8 text-center">
               <LoaderCircle className="w-8 h-8 text-primary mx-auto animate-spin" />
@@ -260,6 +265,10 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
               {directories.map((dir) => (
                 <div
                   key={dir.relativePath}
+                  data-vault-folder={dir.relativePath}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDirectory(dir); } }}
                   className="px-4 py-3 hover:bg-hover cursor-pointer transition-colors flex items-center"
                   onClick={() => openDirectory(dir)}
                 >
@@ -278,6 +287,10 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
               {files.map((file) => (
                 <div
                   key={file.relativePath}
+                  data-vault-file={file.relativePath}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleFileClick(file); } }}
                   className={`px-4 py-3 hover:bg-hover cursor-pointer transition-colors flex items-center ${
                     selectedFile?.relativePath === file.relativePath ? 'bg-active' : ''
                   }`}
@@ -371,11 +384,14 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
             ) : contentError ? (
               <p role="alert" className="text-sm text-red-500">{contentError}</p>
             ) : fileContent ? (
-              <MarkdownRenderer content={fileContent.content || ''} />
+              fileContent.assetURL ? (
+                fileContent.image ? <img src={fileContent.assetURL} alt={selectedFile.name} className="max-w-full h-auto" /> :
+                <div className="text-sm"><p>Open this file from your Vault folder.</p><button onClick={() => void runDesktopAction('reveal')} className="mt-2 text-primary underline">Show in Finder</button></div>
+              ) : <MarkdownRenderer content={fileContent.content || ''} sourcePath={selectedFile.relativePath} />
             ) : null}
           </div>
 
-          {!contentError && (
+          {fileContent && typeof fileContent.rawContent === 'string' && !contentLoading && !contentError && (
             <NoteActions
               path={selectedFile.relativePath}
               rawContent={fileContent?.rawContent || ''}

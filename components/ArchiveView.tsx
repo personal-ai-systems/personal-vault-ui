@@ -65,14 +65,14 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col">
         <div className="px-4 py-2 border-b border-border bg-surface-variant/50 flex items-center gap-2">
           <Archive className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-medium text-on-surface">Archive</h2>
           <span className="text-xs text-on-surface-variant">Notes you archived, kept inside your Vault</span>
         </div>
 
-        <div className="overflow-auto" style={{ height: 'calc(100vh - 300px)' }}>
+        <div className="overflow-auto flex-1 min-h-0">
           {loading ? (
             <div className="p-8 text-center">
               <LoaderCircle className="w-8 h-8 text-primary mx-auto animate-spin" />
@@ -120,13 +120,13 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
           <div className="flex-1 overflow-auto p-4">
             {contentLoading
               ? <div className="flex items-center gap-2 text-sm text-on-surface-variant"><LoaderCircle className="w-4 h-4 animate-spin" /> Loading note…</div>
-              : content ? <MarkdownRenderer content={content.content || ''} /> : null}
+              : content ? <MarkdownRenderer content={content.content || ''} sourcePath={selected.relativePath} /> : null}
           </div>
-          <NoteActions
+          {content && !contentLoading && <NoteActions
             path={selected.relativePath}
             rawContent={content?.rawContent || ''}
             onChanged={() => { setSelected(null); setContent(null); onChanged?.(); void loadArchive(); }}
-          />
+          />}
         </div>
       )}
     </div>

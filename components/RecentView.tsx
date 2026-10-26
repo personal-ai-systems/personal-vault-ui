@@ -33,6 +33,7 @@ export default function RecentView() {
   const [files, setFiles] = useState<RecentFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<RecentFile | null>(null);
   const [fileContent, setFileContent] = useState<any>(null);
   const [contentLoading, setContentLoading] = useState(false);
@@ -47,6 +48,7 @@ export default function RecentView() {
         setError(data.error);
       } else {
         setFiles(data.files || []);
+        setWarning(data.listingWarning || null);
       }
     } catch (err) {
       setError('Failed to fetch recent files');
@@ -158,7 +160,7 @@ export default function RecentView() {
   if (older.length) groups.push({ label: 'Older', files: older });
 
   return (
-    <div className="h-full">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-4 py-2 border-b border-border bg-surface-variant/50 flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -175,7 +177,8 @@ export default function RecentView() {
       </div>
 
       {/* Content */}
-      <div className="overflow-auto" style={{ height: 'calc(100vh - 300px)' }}>
+      {warning && <p role="status" className="px-4 py-2 text-sm text-amber-500">{warning}</p>}
+      <div className="overflow-auto flex-1 min-h-0">
         {loading ? (
           <div className="p-8 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>

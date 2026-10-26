@@ -1,6 +1,7 @@
 'use client';
 import { Search, Settings, Plus, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useVaultInfo } from '@/lib/vault-info-client';
 
 interface TopAppBarProps {
   currentView?: string;
@@ -16,6 +17,7 @@ interface TopAppBarProps {
 export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote, onImportOpenAI, importBusy = false, importMessage }: TopAppBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const { info } = useVaultInfo();
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -98,6 +100,7 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
             {settingsOpen && (
               <div role="menu" className="absolute right-0 top-11 z-30 w-64 rounded-lg border border-border bg-surface shadow-lg p-3 text-sm">
                 <p className="font-medium text-on-surface">Settings</p>
+                {info?.appVersion && <p className="mt-1 text-xs text-on-surface-variant">Version {info.appVersion}</p>}
                 {onImportOpenAI && (
                   <button
                     role="menuitem"
@@ -110,6 +113,11 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
                   </button>
                 )}
                 {importMessage && <p role="status" className="mt-2 text-xs text-on-surface-variant">{importMessage}</p>}
+                {info?.mcpEndpoint && <div className="mt-3 border-t border-border pt-2 text-xs">
+                  <p className="font-medium">Local MCP connection</p>
+                  <code className="mt-1 block break-all select-text">{info.mcpEndpoint}</code>
+                  <p className="mt-1 text-on-surface-variant">This Mac only, while the app is open. The port changes after a restart.</p>
+                </div>}
                 <p className="mt-2 text-xs text-on-surface-variant">Your notes stay in your own folder, with no account and no cloud.</p>
               </div>
             )}

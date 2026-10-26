@@ -109,7 +109,7 @@ export default function SearchView({ query }: SearchViewProps) {
   };
 
   return (
-    <div className="h-full">
+    <div className="h-full flex flex-col">
       <div className="px-4 py-2 border-b border-border bg-surface-variant/50 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Search className="w-4 h-4 text-primary" />
@@ -118,7 +118,7 @@ export default function SearchView({ query }: SearchViewProps) {
         <span className="text-xs text-on-surface-variant">{summary}</span>
       </div>
 
-      <div className="overflow-auto" style={{ height: 'calc(100vh - 300px)' }}>
+      <div className="overflow-auto flex-1 min-h-0">
         {loading ? (
           <div className="p-8 text-center">
             <Loader2 className="w-8 h-8 text-primary mx-auto animate-spin" />

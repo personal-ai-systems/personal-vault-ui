@@ -21,6 +21,13 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    if (!file) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [file, onClose]);
+
+  useEffect(() => {
     // Trigger animation when modal opens
     if (file) {
       setIsVisible(true);
@@ -49,14 +56,14 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
 
   const handleCopy = async () => {
     if (content?.content) {
-      await navigator.clipboard.writeText(content.content);
+      await navigator.clipboard.writeText(content.rawContent ?? content.content);
       // Could add toast notification here
     }
   };
 
   const handleDownload = () => {
     if (content?.content) {
-      const blob = new Blob([content.content], { type: 'text/markdown' });
+      const blob = new Blob([content.rawContent ?? content.content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -83,6 +90,9 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
         }`}
       >
         <div 
+          role="dialog"
+          aria-modal="true"
+          aria-label="Note preview"
           className="bg-surface dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -135,6 +145,7 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
               <div className="h-full overflow-auto p-6">
                 <MarkdownRenderer 
                   content={content.content}
+                  sourcePath={file.relativePath}
                 />
               </div>
             ) : (
