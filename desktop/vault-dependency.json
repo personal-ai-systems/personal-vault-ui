@@ -1,0 +1,6 @@
+{
+  "comment": "The exact Personal Vault package the desktop app ships. Nothing is copied by hand: the build installs this ref as a real dependency, so the app and the server cannot drift apart without the build failing.",
+  "remote": "git+ssh://git@github.com/personal-ai-systems/personal-vault.git",
+  "ref": "08830cd1ef4c959b0f733f8f28dabcdc98458f35",
+  "refKind": "commit"
+}

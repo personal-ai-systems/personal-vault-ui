@@ -8,6 +8,10 @@ const { randomBytes } = require('node:crypto');
 let window, children = [], quitting = false, vaultRoot;
 const token = randomBytes(32).toString('hex');
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+// The Vault is installed as a real npm dependency, pinned by
+// desktop/vault-dependency.json. Nothing here points at a hand-copied file any
+// more, so the server and the app cannot drift apart without the build failing.
+const vaultPackageDir = (resources) => path.join(resources, 'vault', 'node_modules', 'personal-vault');
 async function port() {
   const server = net.createServer();
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
@@ -181,7 +185,7 @@ async function importOpenAI() {
   if (selected.canceled || !selected.filePaths[0]) return { ok: false, canceled: true };
   try {
     const resources = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..', '.desktop-stage');
-    const result = await runOpenAIImporter(path.join(resources, 'vault', 'scripts', 'import-openai-export.mjs'), selected.filePaths[0], vaultRoot);
+    const result = await runOpenAIImporter(path.join(vaultPackageDir(resources), 'scripts', 'import-openai-export.mjs'), selected.filePaths[0], vaultRoot);
     await ask({
       type: 'info',
       title: 'OpenAI import complete',
@@ -231,7 +235,7 @@ async function boot() {
   const backendPort=await port(),uiPort=await port();
   const backendURL=`http://127.0.0.1:${backendPort}`;
   const uiURL=`http://127.0.0.1:${uiPort}`;
-  start(path.join(resources,'vault','mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token});
+  start(path.join(vaultPackageDir(resources),'mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token});
   await ready(backendURL+'/status',{Authorization:`Bearer ${token}`});
   start(path.join(webRuntime,'server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
   await ready(uiURL+'/api/files',{'x-vault-desktop-token':token});
@@ -262,7 +266,7 @@ async function boot() {
       const timestamp=Date.UTC(2026,9,25,0,0,0)/1000;
       await fs.writeFile(smokeExport,JSON.stringify([{id:'desktop-smoke-openai',title:'Packaged import',create_time:timestamp,current_node:'answer',mapping:{question:{id:'question',parent:null,message:{author:{role:'user'},create_time:timestamp,content:{parts:['Keep this readable.']}}},answer:{id:'answer',parent:'question',message:{author:{role:'assistant'},create_time:timestamp+1,content:{parts:['Saved as Markdown.']}}}}}]));
       const resources=app.isPackaged ? process.resourcesPath : path.join(__dirname,'..','.desktop-stage');
-      const importer=await import(pathToFileURL(path.join(resources,'vault','scripts','import-openai-export.mjs')).href);
+      const importer=await import(pathToFileURL(path.join(vaultPackageDir(resources),'scripts','import-openai-export.mjs')).href);
       const imported=await importer.importOpenAIExport({inputPath:smokeExport,vaultRoot:root});
       assert.equal(imported.imported,1);
       assert.match(await fs.readFile(path.join(root,imported.files[0]),'utf8'),/## Assistant\n\nSaved as Markdown\./);

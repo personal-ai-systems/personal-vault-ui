@@ -6,6 +6,31 @@ Status: **internal verification/testing only**. Repositories remain private. Do 
 
 Keep `personal-vault` and `personal-vault-ui` as siblings. UI owns desktop packaging; Vault owns file operations. `PERSONAL_VAULT_SOURCE=/another/checkout` overrides the source location at build time only.
 
+The Vault is installed as a **pinned npm dependency**, not copied by hand.
+
+`desktop/vault-dependency.json` records the exact commit the app ships:
+
+```json
+{
+  "remote": "git+ssh://git@github.com/personal-ai-systems/personal-vault.git",
+  "ref": "<commit sha>",
+  "refKind": "commit"
+}
+```
+
+`scripts/build-desktop.mjs` installs that ref into `.desktop-stage/vault/node_modules/personal-vault`, so the packaged server and its shared library always come from one resolved package. Three checks run before anything is packaged, and any failure stops the build instead of producing an app that crashes on launch:
+
+1. the local checkout is at the pinned commit and has no uncommitted changes;
+2. the installed package resolves through its exports map and exports `createVault`;
+3. the installed server starts against a throwaway root and answers `/status`.
+
+Shipped values land in `Contents/Resources/build-info.json` under `vault`: the ref, the resolved package version, the server's reported version, and SHA-256 hashes of `mcp/personal-vault-server.mjs` and `lib/index.mjs`.
+
+**When you commit to `personal-vault`, update the pin.** The build refuses to run against a different commit, because that is how the app previously shipped a server nobody had tested. One-line edit, then rebuild.
+
+The desktop runtime resolves the server at
+`Resources/vault/node_modules/personal-vault/mcp/personal-vault-server.mjs`.
+
 ```
 Electron window -> bundled Next.js UI/API -> bundled Vault MCP -> selected folder
 ```
