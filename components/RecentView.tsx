@@ -19,6 +19,8 @@ interface RecentFile {
   title: string;
   preview: string;
   frontmatter: Record<string, unknown>;
+  /** Set when the note's metadata block is not valid YAML. */
+  metadataError?: string | null;
 }
 
 interface FileItem {
@@ -230,6 +232,14 @@ export default function RecentView() {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${cat.color}`}>
                             {cat.label}
                           </span>
+                          {file.metadataError && (
+                            <span
+                              title={file.metadataError}
+                              className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200"
+                            >
+                              Metadata
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center space-x-2 mt-0.5">
                           <span className="text-[11px] text-on-surface-variant font-mono truncate">

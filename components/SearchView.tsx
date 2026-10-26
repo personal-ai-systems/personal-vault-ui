@@ -14,6 +14,8 @@ interface SearchResult {
   content: string;
   score: number;
   matches: string[];
+  /** Set when the note's metadata block is not valid YAML. */
+  metadataError?: string | null;
 }
 
 interface SearchViewProps {
@@ -152,6 +154,14 @@ export default function SearchView({ query }: SearchViewProps) {
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-variant text-on-surface-variant">
                       {file.matches.join(', ')}
                     </span>
+                    {file.metadataError && (
+                      <span
+                        title={file.metadataError}
+                        className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200"
+                      >
+                        Metadata
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-on-surface-variant font-mono truncate mt-0.5">
                     {file.relativePath}

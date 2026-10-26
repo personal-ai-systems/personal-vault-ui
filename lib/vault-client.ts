@@ -17,8 +17,20 @@ export async function document(file: string) {
   const result = await vault('read', { path: file });
   const parsed = matter(result.content);
   return { path: file, fullPath: file, frontmatter: parsed.data, content: parsed.content, rawContent: result.content,
+    // Non-null when the file's metadata is not valid YAML. The caller shows
+    // rawContent and a warning instead of failing the request.
+    metadataError: parsed.metadataError,
     stats: { size: result.sizeBytes, mtime: Date.parse(result.modifiedAt), ctime: Date.parse(result.modifiedAt) } };
 }
+
+/**
+ * YAML parser messages name byte offsets inside a file the reader cannot see.
+ * They are an implementation detail, not a user-facing error.
+ */
+const PARSER_LEAK = /bad indentation of a mapping entry|unexpected end of the stream|can not read a block mapping entry|duplicated mapping key|incomplete explicit mapping pair|end of the stream or a document separator|unacceptable character/i;
+
 export function failure(error: unknown) {
-  return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = PARSER_LEAK.test(raw) ? 'This note could not be read.' : raw;
+  return Response.json({ error: message }, { status: 400 });
 }

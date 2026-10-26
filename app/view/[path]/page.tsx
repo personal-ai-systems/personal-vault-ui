@@ -12,6 +12,9 @@ interface FileMetadata {
   modified: string;
   created: string;
   content: string;
+  rawContent?: string;
+  /** Set when the note's metadata block is not valid YAML. */
+  metadataError?: string | null;
 }
 
 export default function MarkdownViewerPage() {
@@ -112,12 +115,28 @@ export default function MarkdownViewerPage() {
       {/* Clean markdown content */}
       <div className="p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="prose prose-lg dark:prose-invert max-w-none">
-            <MarkdownRenderer 
-              content={file.content} 
-              className="min-h-[calc(100vh-120px)]"
-            />
-          </div>
+          {file.metadataError && (
+            <div
+              role="status"
+              className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            >
+              {file.metadataError}
+            </div>
+          )}
+          {file.metadataError ? (
+            // The frontmatter could not be parsed, so render nothing as
+            // Markdown and show the file exactly as it is saved.
+            <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+              {file.rawContent ?? file.content}
+            </pre>
+          ) : (
+            <div className="prose prose-lg dark:prose-invert max-w-none">
+              <MarkdownRenderer 
+                content={file.content} 
+                className="min-h-[calc(100vh-120px)]"
+              />
+            </div>
+          )}
 
           {/* Minimal footer with basic info */}
           <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-800 text-sm text-gray-500 dark:text-gray-400">

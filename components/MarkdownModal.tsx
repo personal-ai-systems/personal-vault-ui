@@ -143,10 +143,27 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
               </div>
             ) : content ? (
               <div className="h-full overflow-auto p-6">
-                <MarkdownRenderer 
-                  content={content.content}
-                  sourcePath={file.relativePath}
-                />
+                {content.metadataError && (
+                  <div
+                    role="status"
+                    className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                  >
+                    {content.metadataError}
+                  </div>
+                )}
+                {content.metadataError ? (
+                  // Unparsed metadata means the note cannot be rendered as
+                  // Markdown without inventing structure, so show the file
+                  // exactly as it is saved on disk.
+                  <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-on-surface dark:text-gray-200">
+                    {content.rawContent ?? content.content}
+                  </pre>
+                ) : (
+                  <MarkdownRenderer 
+                    content={content.content}
+                    sourcePath={file.relativePath}
+                  />
+                )}
               </div>
             ) : (
               <div className="h-full flex items-center justify-center">

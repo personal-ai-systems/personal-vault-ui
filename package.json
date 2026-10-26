@@ -3,7 +3,7 @@
   "version": "0.2.1-preview.2",
   "private": true,
   "scripts": {
-    "test": "node scripts/test-ui-rules.mjs",
+    "test": "node scripts/test-ui-rules.mjs && node scripts/test-frontmatter.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
