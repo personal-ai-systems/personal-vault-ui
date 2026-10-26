@@ -65,6 +65,24 @@ async function writableWebRuntime(resources) {
   return runtimeWeb;
 }
 
+// The About panel is the only place the running version is shown. Ordinary
+// settings stay user-focused, so version and build date live here instead.
+// The MCP endpoint is likewise not user-facing: the connection still runs, the
+// address is simply not something a person needs to read in Settings.
+async function configureAboutPanel() {
+  let builtAt = '';
+  try {
+    const buildInfo = JSON.parse(await fs.readFile(path.join(process.resourcesPath, 'build-info.json'), 'utf8'));
+    if (buildInfo.builtAt) builtAt = String(buildInfo.builtAt);
+  } catch {}
+  app.setAboutPanelOptions({
+    applicationName: 'Personal Vault',
+    applicationVersion: app.getVersion(),
+    version: builtAt ? `Built ${builtAt.slice(0, 10)}` : '',
+    copyright: 'Your notes stay in your own folder.',
+  });
+}
+
 // ------------------------------------------------------------------ onboarding
 // The first run explains the product before it asks for anything: no folder is
 // created, moved or imported until the user confirms one. These screens use
@@ -247,7 +265,8 @@ async function boot() {
   };
   window.webContents.setWindowOpenHandler(({url})=>{openWebLink(url);return {action:'deny'};});
   window.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==uiURL){event.preventDefault();openWebLink(url);}});
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{label:'Open another Vault…',click:()=>{switchVault().catch(error=>console.error(error));}},{label:'Show Vault in Finder',click:()=>{revealVault().catch(error=>console.error(error));}},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
+  await configureAboutPanel();
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{role:'about'},{type:'separator'},{label:'Open another Vault…',click:()=>{switchVault().catch(error=>console.error(error));}},{label:'Show Vault in Finder',click:()=>{revealVault().catch(error=>console.error(error));}},{type:'separator'},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
   await window.loadURL(uiURL);
   if(process.env.PV_DESKTOP_SMOKE_ROOT){
     const assert=require('node:assert/strict');

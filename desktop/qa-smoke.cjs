@@ -94,7 +94,11 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   await js(`document.querySelector('button[title="Settings"]').click()`);
   await wait(`Boolean(document.querySelector('[role="menu"]'))`, 'Settings menu');
   assert.equal(await js(`Array.from(document.querySelectorAll('[role="menu"] button')).some(b=>b.textContent.includes('Import OpenAI'))`), true);
-  await wait(`document.querySelector('[role="menu"]')?.textContent.includes(${JSON.stringify(backendURL + '/mcp')})`, 'displayed local MCP endpoint');
+  // Ordinary settings stay user-focused: neither the MCP address nor the
+  // version belongs here. The MCP connection itself is verified below with an
+  // independent client, so hiding the address does not hide a broken service.
+  assert.equal(await js(`document.querySelector('[role="menu"]')?.textContent.includes(${JSON.stringify(backendURL + '/mcp')})`), false, 'Settings must not display the local MCP endpoint');
+  assert.equal(await js(`/Version\\s+\\d/.test(document.querySelector('[role="menu"]')?.textContent || '')`), false, 'Settings must not display the app version');
   await js(`document.querySelector('button[title="Settings"]').click()`);
 
   // Independent MCP SDK client, not the renderer's existing connection.
