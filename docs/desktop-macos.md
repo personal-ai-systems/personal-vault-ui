@@ -4,7 +4,23 @@ Status: **public early preview**, not a production release. Vault and UI source
 repositories are public. New archives require tests and separate publication;
 local preparation does not update an existing GitHub download.
 
-## Current QA build — 0.2.1-preview.2, 26 October 2026
+## Preview.3 candidate — 26 October 2026
+
+`0.2.1-preview.3` fixes non-text metadata titles crashing Recent and adds the
+missing raw-text warning/fallback in folder previews. Search also falls back to
+the filename for a non-text title. The packaged rendered-window suite now checks
+objects, arrays, numbers and blank titles, plus a malformed Russian/emoji header
+with CRLF and a UTF-8 BOM. It checks both folder/Recent previews and unchanged
+source bytes. The native About panel is included; version and MCP diagnostics
+are absent from ordinary Settings. Vault is pinned at `115c249` using a public
+HTTPS Git dependency for machines without a local checkout.
+
+Installation, ten user checks and the separate ChatGPT connection acceptance
+scenario: [testing-preview.md](testing-preview.md). This is not an automatic
+ChatGPT connector, second-Mac acceptance or notarized release. Use the published
+release's assets/checksums, not an older local archive with a similar name.
+
+## Historical QA build — 0.2.1-preview.2, 26 October 2026
 
 Vault revision: `af344aa`. Prepared locally; no GitHub release was replaced.
 

@@ -387,6 +387,15 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
               fileContent.assetURL ? (
                 fileContent.image ? <img src={fileContent.assetURL} alt={selectedFile.name} className="max-w-full h-auto" /> :
                 <div className="text-sm"><p>Open this file from your Vault folder.</p><button onClick={() => void runDesktopAction('reveal')} className="mt-2 text-primary underline">Show in Finder</button></div>
+              ) : fileContent.metadataError ? (
+                <>
+                  <p role="status" className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                    {fileContent.metadataError}
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-on-surface">
+                    {fileContent.rawContent ?? fileContent.content}
+                  </pre>
+                </>
               ) : <MarkdownRenderer content={fileContent.content || ''} sourcePath={selectedFile.relativePath} />
             ) : null}
           </div>

@@ -149,7 +149,8 @@ export default function SearchView({ query }: SearchViewProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-on-surface truncate">
-                      {String(file.frontmatter?.title || file.name)}
+                      {typeof file.frontmatter?.title === 'string' && file.frontmatter.title.trim()
+                        ? file.frontmatter.title : file.name}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-variant text-on-surface-variant">
                       {file.matches.join(', ')}

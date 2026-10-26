@@ -1,4 +1,8 @@
-# Personal Vault
+# Personal Vault — archived 0.2.0 release copy
+
+This is the historical 0.2.0 announcement, including its original downloads and
+checksums. For the current preview use the [README](../README.md) and
+[first-time testing guide](testing-preview.md), not the older archives below.
 
 **Your AI memory should belong to you, not to one model.**
 

@@ -141,9 +141,42 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   assert.equal(await js('window.__qaCopy'), await fs.readFile(downloadedPath, 'utf8'));
   await js(`delete navigator.clipboard.writeText; document.querySelector('[aria-label="Note preview"] button[title="Close"]').click(); true`);
 
+  // Optional metadata is never allowed to blank Recent or hide the original.
+  const malformedPath = 'qa/2026/10/ошибка-метаданных.md';
+  const malformedSource = '\uFEFF---\r\ntitle: Мысли: планы 📝\r\n---\r\n# Сохранённые мысли\r\n\r\nUnicode stays readable.';
+  await invoke('create', { path: malformedPath, content: malformedSource });
+  const unusualTitles = [
+    ['object-title.md', '{nested: value}'],
+    ['array-title.md', '[one, two]'],
+    ['number-title.md', '42'],
+    ['empty-title.md', '"   "'],
+  ];
+  for (const [name, title] of unusualTitles) {
+    await invoke('create', { path: 'qa/2026/10/' + name, content: `---\ntitle: ${title}\n---\n# Metadata regression fixture` });
+  }
+  await js(`window.dispatchEvent(new CustomEvent('vault:open-note',{detail:${JSON.stringify(malformedPath)}}));true`);
+  await wait(`Array.from(document.querySelectorAll('[role="status"]')).some(e=>e.textContent.includes('metadata could not be read')) && Boolean(document.querySelector('pre.whitespace-pre-wrap'))`, 'folder preview metadata warning and raw fallback');
+  assert.equal(await js(`document.querySelector('pre.whitespace-pre-wrap').textContent`), malformedSource);
+  assert.equal(await fs.readFile(path.join(root, malformedPath), 'utf8'), malformedSource);
+  await click('Recent', 'aside');
+  await wait(`document.body.innerText.includes('object-title.md') && document.body.innerText.includes('ошибка-метаданных.md')`, 'Recent survives malformed and non-text titles');
+  const recent = await fetch(uiURL + '/api/recent', { headers: { 'x-vault-desktop-token': token } }).then(r => r.json());
+  for (const [name] of unusualTitles) assert.equal(recent.files.find(f => f.name === name)?.title, name);
+  assert.ok(recent.files.find(f => f.name === 'ошибка-метаданных.md')?.metadataError);
+  assert.equal(await js(`document.body.innerText.includes('[object Object]')`), false);
+  assert.equal(await js(`(() => {const row=Array.from(document.querySelectorAll('main div.cursor-pointer')).find(e=>e.textContent.includes(${JSON.stringify(malformedPath)}));if(!row)return false;row.click();return true;})()`), true);
+  await wait(`Boolean(document.querySelector('[aria-label="Note preview"] pre.whitespace-pre-wrap'))`, 'Recent raw-text preview');
+  assert.equal(await js(`document.querySelector('[aria-label="Note preview"] pre').textContent`), malformedSource);
+  await js(`document.querySelector('[aria-label="Note preview"] button[title="Close"]').click();true`);
+  await set('input[placeholder="Search in vault..."]', 'Metadata regression fixture');
+  await wait(`Array.from(document.querySelectorAll('main button')).some(b=>b.textContent.includes('object-title.md'))`, 'search falls back to a readable filename');
+  assert.equal(await js(`document.body.innerText.includes('[object Object]')`), false);
+  await set('input[placeholder="Search in vault..."]', '');
+  console.log('DESKTOP_METADATA_QA_OK: Recent and search survive object/array/number/empty titles; malformed Cyrillic/emoji/CRLF/BOM notes open raw with warnings in folder and Recent; original bytes unchanged.');
+
   // End on the fixture note so a captured image shows the checked UI state.
   await js(`window.dispatchEvent(new CustomEvent('vault:open-note',{detail:${JSON.stringify(createdPath)}}))`);
   await wait(`Boolean(document.querySelector('.markdown-content img')?.naturalWidth)`, 'final note preview');
   if (process.env.PV_DESKTOP_QA_SCREENSHOT) await fs.writeFile(process.env.PV_DESKTOP_QA_SCREENSHOT, (await window.webContents.capturePage()).toPNG());
-  console.log('DESKTOP_QA_OK: rendered controls — newest-first list/tree, linked note, create during search, duplicate refusal, edit/save, image attachment, archive/restore, Recent/Archive/Settings, original Markdown download, copy payload (clipboard stub); independent MCP read, displayed endpoint, protected binary preview and rejected foreign Origin.');
+  console.log('DESKTOP_QA_OK: rendered controls — newest-first list/tree, linked note, create during search, duplicate refusal, edit/save, image attachment, archive/restore, Recent/Archive/Settings, original Markdown download, copy payload (clipboard stub); independent MCP read, protected binary preview and rejected foreign Origin.');
 };

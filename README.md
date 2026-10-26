@@ -24,7 +24,7 @@ Personal Vault does not bundle model subscriptions or automatically connect ever
 
 ## Try the early preview
 
-**[Download for Mac — Apple Silicon (.dmg)](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.2.0-preview.1/Personal.Vault-0.2.0-arm64.dmg)**
+**[Download preview.3 for Mac — Apple Silicon (.dmg)](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.2.1-preview.3/Personal.Vault-0.2.1-preview.3-arm64.dmg)**
 
 For Macs with an Apple M-series chip. Intel Macs and Windows are not supported by this build.
 
@@ -40,7 +40,9 @@ This is an early test version, with rough edges. Start with copies of files you 
 
 **[Report a problem or suggest an improvement](https://github.com/personal-ai-systems/personal-vault-ui/issues)** — tell us what you tried, what happened, and your macOS version. Please leave private notes and personal information out of reports and screenshots.
 
-[Release notes and ZIP download](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.2.0-preview.1)
+[Release notes and ZIP download](https://github.com/personal-ai-systems/personal-vault-ui/releases/tag/v0.2.1-preview.3) · [First-time testing guide](docs/testing-preview.md)
+
+Importing does not automatically connect ChatGPT to your folder or change its built-in memory. To ask about an imported conversation immediately, attach its Markdown file to a ChatGPT conversation. Automatic Vault search needs a separately configured MCP connection; the desktop app alone does not provide remote ChatGPT access.
 
 ## For developers
 

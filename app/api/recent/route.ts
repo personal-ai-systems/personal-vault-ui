@@ -20,7 +20,8 @@ export async function GET(request: Request) {
       const metadataError = d.metadataError || null;
       return {
         ...meta,
-        title: d.frontmatter?.title || name,
+        title: typeof d.frontmatter?.title === 'string' && d.frontmatter.title.trim()
+          ? d.frontmatter.title : name,
         // Raw frontmatter would render as a stray "---" in a two-line preview.
         preview: metadataError ? '' : String(d.content || '').trim().slice(0, 200),
         frontmatter: d.frontmatter,
