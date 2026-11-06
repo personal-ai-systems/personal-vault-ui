@@ -36,10 +36,6 @@ export default function TopAppBar() {
             <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
               <User className="w-4 h-4 text-primary" />
             </div>
-            <div className="text-left hidden md:block">
-              <div className="text-sm font-medium text-on-surface">Kirill</div>
-              <div className="text-xs text-on-surface-variant">Admin</div>
-            </div>
           </button>
         </div>
       </div>

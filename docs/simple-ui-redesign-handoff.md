@@ -7,7 +7,7 @@ historical evidence, not the current redesign's completion status.
 
 ## Files and contextual search — 1 November 2026
 
-Kirill personally tested the installed preview.4 and accepted the current views,
+Personally tested on the installed preview.4 and accepted the current views,
 with two narrow corrections. These supersede only the older Files-collection
 and Settings / All files design below, not the product or storage boundary:
 

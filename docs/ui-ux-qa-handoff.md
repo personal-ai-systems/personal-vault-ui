@@ -22,16 +22,16 @@ User requirements:
 
 ## Current verified state
 
-- UI checkout: `/Users/kirill/development/personal/personal-vault-ui`.
-- Vault checkout: `/Users/kirill/development/personal/personal-vault`.
-- Assistant checkout: `/Users/kirill/development/personal/personal-dashboard`.
+- UI checkout: `/Users/<username>/development/personal/personal-ai-systems/personal-vault-ui`.
+- Vault checkout: `/Users/<username>/development/personal/personal-ai-systems/personal-vault`.
+- Assistant checkout: `/Users/<username>/development/personal/personal-dashboard`.
 - Installed app: `/Applications/Personal Vault.app`, version `0.2.1-preview.2`.
 - UI commit: `83659e7`; Vault commit: `af344aa`. Recheck Git before editing.
 - Prior versions are preserved in Downloads as backup `.app` bundles.
 - Current settings: `~/Library/Application Support/personal-vault-ui/settings.json`.
   The app remembers the chosen folder; reopening an existing Vault on upgrade is
   expected. Do not reset settings or silently move/import files.
-- A test copy exists at `/Users/kirill/Personal Vault Test`. Automated tests
+- A test copy exists at `/Users/<username>/Personal Vault Test`. Automated tests
   should still use synthetic temporary folders, not private records in that copy.
 - The old Chrome-installed shortcut with the same name targets localhost:3000;
   it is not this Electron app. Do not test the wrong application or delete that
