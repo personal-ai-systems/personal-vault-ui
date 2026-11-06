@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   try {
     const requested = Number(new URL(request.url).searchParams.get('limit') || 50);
     const limit = Number.isFinite(requested) ? Math.max(1, Math.min(50, Math.floor(requested))) : 50;
-    const data = await recentFiles((path: string) => vault('list', { path, recursive: false, limit: 1000 }), limit);
+    const data = await recentFiles((path: string) => vault('list', { path, recursive: false, limit: 1000 }), limit, { ordinary: true });
     const items = data.items as any[];
     // Read every note independently: one note with unreadable metadata must
     // degrade to a marked row, not blank the whole Recent list.
@@ -28,6 +28,6 @@ export async function GET(request: Request) {
         metadataError,
       };
     });
-    return Response.json({ files, count: files.length, totalFiles: data.total, listingWarning: data.incomplete ? 'A folder contains 1000 or more entries; this list may be incomplete.' : null, vaultRoot: vaultName() ?? 'Selected Vault', vaultPath: vaultRoot() });
+    return Response.json({ files, count: files.length, totalFiles: data.total, listingWarning: data.listingWarning || null, vaultRoot: vaultName() ?? 'Selected Vault', vaultPath: vaultRoot() });
   } catch (error) { return failure(error); }
 }

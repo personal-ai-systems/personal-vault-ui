@@ -35,7 +35,12 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
       // A Vault that has never archived anything simply has no archive folder yet.
       const missingArchive = data.error && /ENOENT|no such file|inside the Vault/i.test(String(data.error));
       if (data.error && !missingArchive) { setError(data.error); return; }
-      setFiles((data.files || []).map((file: any) => ({
+      const listed = data.files || [];
+      const notes = new Set(listed.filter((file: any) => /\.md$/i.test(file.relativePath)).map((file: any) => file.relativePath.replace(/\.md$/i, '')));
+      setFiles(listed.filter((file: any) => {
+        const owner = /^(.*?)\.assets\//i.exec(file.relativePath)?.[1];
+        return !owner || !notes.has(owner);
+      }).map((file: any) => ({
         name: file.name,
         relativePath: file.relativePath,
         folder: file.relativePath.split('/').slice(0, 2).join('/'),
@@ -56,7 +61,7 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
     try {
       const response = await fetch(`/api/files/${encodeURIComponent(file.relativePath)}`);
       const data = await response.json();
-      if (!response.ok || data.error) setError(data.error || 'This note could not be opened.');
+      if (!response.ok || data.error) setError(data.error || 'This memory could not be opened.');
       else setContent(data);
     } finally { setContentLoading(false); }
   };
@@ -69,7 +74,7 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
         <div className="px-4 py-2 border-b border-border bg-surface-variant/50 flex items-center gap-2">
           <Archive className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-medium text-on-surface">Archive</h2>
-          <span className="text-xs text-on-surface-variant">Notes you archived, kept inside your Vault</span>
+          <span className="text-xs text-on-surface-variant">Memories you archived, kept inside your Vault</span>
         </div>
 
         <div className="overflow-auto flex-1 min-h-0">
@@ -84,7 +89,7 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
             <div className="p-8 text-center">
               <Archive className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-on-surface-variant">Nothing archived yet</p>
-              <p className="mt-1 text-xs text-on-surface-variant">Archiving a note moves it to an <span className="font-mono">archive/&lt;date&gt;</span> folder. Nothing is deleted.</p>
+              <p className="mt-1 text-xs text-on-surface-variant">Keep memories here when you no longer need them in your main list. You can restore them any time.</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -97,7 +102,6 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
                   <FileText className="w-4 h-4 text-blue-500 mr-3 flex-shrink-0" />
                   <span className="flex-1 min-w-0">
                     <span className="block font-medium text-on-surface truncate">{file.name}</span>
-                    <span className="block text-xs text-on-surface-variant font-mono truncate mt-0.5">{file.relativePath}</span>
                   </span>
                   <span className="text-xs text-on-surface-variant ml-3">{formatDate(file.mtime)}</span>
                   <ChevronRight className="w-4 h-4 text-on-surface-variant ml-2" />
@@ -113,19 +117,20 @@ export default function ArchiveView({ refreshKey = 0, onChanged }: { refreshKey?
           <div className="p-3 border-b border-border flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-on-surface truncate">{selected.name}</h2>
-              <p className="text-[11px] text-on-surface-variant font-mono truncate">{selected.relativePath}</p>
+              <details className="mt-1 text-xs text-on-surface-variant"><summary className="cursor-pointer">File details</summary><p className="break-all font-mono">{selected.relativePath}</p></details>
             </div>
             <button onClick={() => { setSelected(null); setContent(null); }} className="text-xs text-on-surface-variant hover:text-on-surface px-2 py-1 rounded hover:bg-hover">Close</button>
           </div>
           <div className="flex-1 overflow-auto p-4">
             {contentLoading
-              ? <div className="flex items-center gap-2 text-sm text-on-surface-variant"><LoaderCircle className="w-4 h-4 animate-spin" /> Loading note…</div>
-              : content ? <MarkdownRenderer content={content.content || ''} sourcePath={selected.relativePath} /> : null}
+              ? <div className="flex items-center gap-2 text-sm text-on-surface-variant"><LoaderCircle className="w-4 h-4 animate-spin" /> Loading memory…</div>
+              : content ? content.metadataError ? <><p role="status" className="mb-3 rounded border border-amber-500 p-3 text-sm">{content.metadataError}</p><pre className="whitespace-pre-wrap break-words text-xs">{content.rawContent ?? content.content}</pre></> : <MarkdownRenderer content={content.content || ''} sourcePath={selected.relativePath} /> : null}
           </div>
           {content && !contentLoading && <NoteActions
             path={selected.relativePath}
             rawContent={content?.rawContent || ''}
             onChanged={() => { setSelected(null); setContent(null); onChanged?.(); void loadArchive(); }}
+            onDeleted={() => { setSelected(null); setContent(null); onChanged?.(); void loadArchive(); }}
           />}
         </div>
       )}

@@ -8,11 +8,36 @@ This installer is for Apple Silicon Macs (M1/M2/M3 and later), not Intel Macs or
 
 1. Save any open notes and quit the old Personal Vault app.
 2. Download [Personal Vault 0.2.1-preview.3 DMG](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.2.1-preview.3/Personal.Vault-0.2.1-preview.3-arm64.dmg). A [ZIP alternative](https://github.com/personal-ai-systems/personal-vault-ui/releases/download/v0.2.1-preview.3/Personal.Vault-0.2.1-preview.3-arm64-mac.zip) is also available.
-3. Open the DMG and drag Personal Vault into Applications. Confirm replacing the old app if asked. Replacing the app does not migrate or delete your separate Vault folder.
+3. Open the DMG and drag Personal Vault into Applications. Choose **Replace** if asked. **Do not delete the old app first or choose Keep Both.** Replacing the app does not migrate or delete your separate Vault folder. Do not use an app-cleaning utility or remove Library settings during an ordinary upgrade.
 4. Open Personal Vault from Applications, not an older Chrome shortcut named Personal Vault.
 5. This preview is ad-hoc signed, not Apple-notarized. macOS may block it again even if you approved an older build. After attempting to open it, use System Settings → Privacy & Security → Open Anyway only if you trust this download. Do not disable Gatekeeper or your Mac's security globally. If there is no safe approval option, stop and send the exact message.
 6. Check Personal Vault → About Personal Vault in the macOS menu bar: the version must be **0.2.1-preview.3**.
 7. On first launch, create a new Vault and choose a test location. If the app remembers an existing folder, that is expected: use Personal Vault → Open another Vault… → Create a new Vault. Check the full folder path in the sidebar before testing.
+
+## Upgrade an existing installation
+
+Save notes and quit Personal Vault before replacing it. If a local Codex session
+is using its MCP connection, end that session first. Replace the app in the same
+`/Applications/Personal Vault.app` location, eject the DMG, and open the installed
+copy. Keep the existing selected Vault; do not create a new folder just to upgrade.
+Check About, the sidebar path, and an existing note, then reconnect Codex in a new
+session. If settings are unexpectedly unavailable, open the original existing
+Vault rather than importing or duplicating it.
+
+Replacing an app does not grant Apple trust to a new preview. Each downloaded
+ad-hoc-signed build may still require a new manual approval. Developer ID signing
+and Apple notarization are the developer-side fix; automatic updates are a
+separate unimplemented feature. Ordinary downloaded-app confirmation prompts can
+still occur for properly signed software. Do not disable Gatekeeper or strip
+quarantine as an update mechanism.
+
+### Local Codex is the primary connection scenario
+
+The tester's client is local Codex. The prepared **Connect Codex…** menu connects
+it to the app-owned server; it does not need a public endpoint or web tunnel.
+Follow [the Codex and upgrade guide](../../personal-vault/docs/connecting-ai-clients.md).
+Its connection menu is not yet in the published preview.3 installer. The ChatGPT
+web section below is optional and is not a prerequisite for local Codex.
 
 ## The first ten checks
 
@@ -67,6 +92,10 @@ Find an imported conversation in Personal Vault, open its folder in Finder, and 
 Expected: the answer agrees with the file you can inspect yourself. ChatGPT only receives what you attach; it cannot search the rest of your Vault this way. Ask a question about a different, unshared conversation: it should not claim to have searched that file.
 
 ### Optional: automatic search through MCP
+
+For the prepared local Codex connection update, see the sibling Vault repository's
+[client connection guide](../../personal-vault/docs/connecting-ai-clients.md).
+Published preview.3 does not yet contain its Connect Codex menu or token fix.
 
 **Not connected automatically in this preview.** The bundled server is local to the Mac. A local compatible client can be configured separately. ChatGPT on the web needs a reachable server or a separately configured Secure MCP Tunnel, with access limited to **your** selected folder. Do not paste `localhost` into ChatGPT and expect it to reach your Mac. Never use another person's Vault endpoint or expose an unauthenticated server to the internet.
 

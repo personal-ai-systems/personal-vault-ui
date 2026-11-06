@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, FileText, Folder, FolderOpen, File, FileCode, FileImage, FileArchive, FileVideo, FileAudio, LoaderCircle, Plus, ExternalLink, Upload } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import NoteActions from './NoteActions';
@@ -35,9 +35,11 @@ interface FileBrowserProps {
   openFile?: string | null;
   /** Called once the note above has been opened. */
   onOpenedFile?: () => void;
+  detailOnly?: boolean;
+  onClosePreview?: () => void;
 }
 
-export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpenAI, importBusy = false, importMessage, refreshKey = 0, onChanged, openFile, onOpenedFile }: FileBrowserProps) {
+export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpenAI, importBusy = false, importMessage, refreshKey = 0, onChanged, openFile, onOpenedFile, detailOnly = false, onClosePreview }: FileBrowserProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,34 +49,44 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [noteMessage, setNoteMessage] = useState<string | null>(null);
+  const directoryRequest = useRef<AbortController | null>(null);
+  const contentRequest = useRef<AbortController | null>(null);
   const { info } = useVaultInfo();
   const { run: runDesktopAction, message: desktopMessage } = useVaultActions();
 
   const fetchDirectory = async (target: string = '') => {
+    directoryRequest.current?.abort();
+    const controller = new AbortController();
+    directoryRequest.current = controller;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       if (target) params.set('path', target);
 
-      const response = await fetch(`/api/files?${params}`);
+      const response = await fetch(`/api/files?${params}`, { signal: controller.signal });
       const data = await response.json();
+      if (controller.signal.aborted) return;
 
-      if (data.error) {
-        setError(data.error);
+      if (!response.ok || data.error) {
+        setError(data.error || 'Could not open this folder.');
       } else {
         setFiles(data.files || []);
         setDirectories(data.directories || []);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       setError('Failed to fetch directory contents');
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
   const fetchFileContent = async (filePath: string) => {
+    contentRequest.current?.abort();
+    const controller = new AbortController();
+    contentRequest.current = controller;
     setContentLoading(true);
     setContentError(null);
     try {
@@ -83,8 +95,9 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
         return;
       }
       const encodedPath = encodeURIComponent(filePath);
-      const response = await fetch(`/api/files/${encodedPath}`);
+      const response = await fetch(`/api/files/${encodedPath}`, { signal: controller.signal });
       const data = await response.json();
+      if (controller.signal.aborted) return;
 
       if (!response.ok || data.error) {
         setContentError(data.error || 'This file could not be opened.');
@@ -92,16 +105,23 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
         setFileContent(data);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       setContentError('Failed to fetch file content');
       console.error(err);
     } finally {
-      setContentLoading(false);
+      if (!controller.signal.aborted) setContentLoading(false);
     }
   };
 
   useEffect(() => {
     void fetchDirectory(path);
+    return () => directoryRequest.current?.abort();
   }, [path, refreshKey]);
+
+  useEffect(() => () => {
+    directoryRequest.current?.abort();
+    contentRequest.current?.abort();
+  }, []);
 
   // The sidebar can ask for a specific note; open it once the file is known.
   useEffect(() => {
@@ -113,6 +133,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
   }, [openFile, files]);
 
   const openDirectory = (dir: DirectoryItem) => {
+    contentRequest.current?.abort();
     onPathChange(dir.relativePath);
     setSelectedFile(null);
     setFileContent(null);
@@ -133,9 +154,11 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
   };
 
   const handleClosePanel = () => {
+    contentRequest.current?.abort();
     setSelectedFile(null);
     setFileContent(null);
     setContentError(null);
+    onClosePreview?.();
   };
 
   const handleNoteChanged = (message: string, nextPath?: string) => {
@@ -153,6 +176,15 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
       void fetchFileContent(selectedFile.relativePath);
     }
     void fetchDirectory(path);
+  };
+
+  const deleteSelectedFile = async () => {
+    if (!selectedFile || !confirm('Move this file to Recently Deleted? You can restore it later.')) return;
+    try {
+      const response = await fetch('/api/vault', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'trash', args: { path: selectedFile.relativePath } }) });
+      const data = await response.json(); if (!response.ok || data.error) throw Error(data.error || 'This file could not be deleted.');
+      handleClosePanel(); onChanged?.(); void fetchDirectory(path);
+    } catch (error) { setContentError(error instanceof Error ? error.message : 'This file could not be deleted.'); }
   };
 
   const getFileIcon = (fileName: string) => {
@@ -225,8 +257,8 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
   const isEmpty = !loading && !error && directories.length === 0 && files.length === 0 && path === '';
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 min-w-0 flex flex-col">
+    <div className="flex h-full min-w-0">
+      {!detailOnly && <div className="flex-1 min-w-0 flex flex-col">
         {/* Breadcrumbs */}
         <div className="px-4 py-2 border-b border-border bg-surface-variant/50">
           <div className="flex items-center text-sm">
@@ -318,7 +350,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
                     onClick={onNewNote}
                     className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
                   >
-                    <Plus className="w-4 h-4" /> Create a note here
+                    <Plus className="w-4 h-4" /> Add to memory here
                   </button>
                 </div>
               )}
@@ -330,7 +362,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
             <div className="p-8 text-center max-w-md mx-auto">
               <EmptyVaultIllustration />
               <h2 className="mt-4 text-lg font-medium text-on-surface">Your Vault is ready</h2>
-              <p className="mt-1 text-sm text-on-surface-variant">Bring your existing AI conversations with you, or start with a new note. Everything is saved as readable Markdown.</p>
+              <p className="mt-1 text-sm text-on-surface-variant">Bring your existing AI conversations with you, or save something you want to remember. Everything stays in readable files.</p>
               <div className="mt-5 grid gap-2 text-left">
                 <button
                   onClick={() => void onImportOpenAI()}
@@ -344,7 +376,7 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
                   onClick={onNewNote}
                   className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border text-sm font-medium hover:bg-hover"
                 >
-                  <Plus className="w-5 h-5 text-primary" /> <span>2. Create your first note</span>
+                  <Plus className="w-5 h-5 text-primary" /> <span>2. Add your first memory</span>
                 </button>
                 <button
                   onClick={() => void runDesktopAction('reveal')}
@@ -360,18 +392,18 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Detail panel: the selected note, with its own contextual actions. */}
       {selectedFile && (
-        <div className="w-[26rem] max-w-[45%] border-l border-border bg-surface flex flex-col flex-shrink-0">
+        <div className={`${detailOnly ? 'w-full min-w-0' : 'w-[26rem] max-w-[45%] border-l'} border-border bg-surface flex flex-col flex-shrink-0`}>
           <div className="p-3 border-b border-border flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-on-surface truncate">{selectedFile.name}</h2>
-              <p className="text-[11px] text-on-surface-variant font-mono truncate">{selectedFile.relativePath}</p>
+              <h2 className="text-sm font-semibold text-on-surface truncate">{detailOnly && typeof fileContent?.frontmatter?.title === 'string' && fileContent.frontmatter.title.trim() ? fileContent.frontmatter.title : selectedFile.name}</h2>
+              <details className="mt-1 text-xs text-on-surface-variant"><summary className="cursor-pointer">File details</summary><p className="mt-1 break-all font-mono">{selectedFile.relativePath}</p></details>
               {noteMessage && <p role="status" className="text-[11px] text-primary mt-0.5">{noteMessage}</p>}
             </div>
-            <button onClick={handleClosePanel} className="text-xs text-on-surface-variant hover:text-on-surface px-2 py-1 rounded hover:bg-hover" title="Close note">
+            <button onClick={handleClosePanel} className="text-xs text-on-surface-variant hover:text-on-surface px-2 py-1 rounded hover:bg-hover" title="Close memory">
               Close
             </button>
           </div>
@@ -379,14 +411,14 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
           <div className="flex-1 overflow-auto p-4">
             {contentLoading ? (
               <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-                <LoaderCircle className="w-4 h-4 animate-spin" /> Loading note…
+                <LoaderCircle className="w-4 h-4 animate-spin" /> Loading memory…
               </div>
             ) : contentError ? (
               <p role="alert" className="text-sm text-red-500">{contentError}</p>
             ) : fileContent ? (
               fileContent.assetURL ? (
                 fileContent.image ? <img src={fileContent.assetURL} alt={selectedFile.name} className="max-w-full h-auto" /> :
-                <div className="text-sm"><p>Open this file from your Vault folder.</p><button onClick={() => void runDesktopAction('reveal')} className="mt-2 text-primary underline">Show in Finder</button></div>
+                <div className="text-sm"><p>This file stays in your folder. Open it with your usual app.</p><button onClick={() => void runDesktopAction('reveal')} className="mt-2 text-primary underline">Open folder</button></div>
               ) : fileContent.metadataError ? (
                 <>
                   <p role="status" className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
@@ -405,8 +437,11 @@ export default function FileBrowser({ path, onPathChange, onNewNote, onImportOpe
               path={selectedFile.relativePath}
               rawContent={fileContent?.rawContent || ''}
               onChanged={handleNoteChanged}
+              onDeleted={() => { handleClosePanel(); onChanged?.(); void fetchDirectory(path); }}
+              simple={detailOnly && !fileContent.metadataError}
             />
           )}
+          {fileContent?.assetURL && !contentLoading && <section className="flex flex-wrap gap-2 border-t border-border p-3"><button onClick={() => void runDesktopAction('reveal')} className="rounded-lg border border-border px-3 py-2 text-xs">Open folder</button><button onClick={() => void deleteSelectedFile()} className="ml-auto rounded-lg px-3 py-2 text-xs text-red-600">Delete</button></section>}
         </div>
       )}
     </div>

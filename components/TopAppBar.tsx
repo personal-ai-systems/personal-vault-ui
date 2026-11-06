@@ -1,27 +1,34 @@
 'use client';
-import { Search, Settings, Plus, Upload } from 'lucide-react';
+import { Search, Settings, Plus, Upload, FolderOpen } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import type { VaultView } from '@/lib/view-types';
 
 interface TopAppBarProps {
-  currentView?: string;
-  onViewChange?: (view: any) => void;
+  currentView: VaultView;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onNewNote?: () => void;
   onImportOpenAI?: () => Promise<boolean>;
   importBusy?: boolean;
   importMessage?: string | null;
+  onOpenFolder?: () => void;
+  onChooseFolder?: () => void;
+  desktopMessage?: string | null;
 }
 
-export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote, onImportOpenAI, importBusy = false, importMessage }: TopAppBarProps) {
+export default function TopAppBar({ currentView, searchQuery, onSearchQueryChange, onNewNote, onImportOpenAI, importBusy = false, importMessage, onOpenFolder, onChooseFolder, desktopMessage }: TopAppBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const section = { recent: 'Recent', notes: 'Memory', files: 'Files', browse: 'Files', archive: 'Archive', deleted: 'Recently Deleted' }[currentView];
+  const searchLabel = `Search in ${section}`;
 
   useEffect(() => {
     if (!settingsOpen) return;
     const close = (event: MouseEvent) => { if (!settingsRef.current?.contains(event.target as Node)) setSettingsOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSettingsOpen(false); };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
   }, [settingsOpen]);
 
   return (
@@ -36,7 +43,7 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
             </div>
             <div>
               <h1 className="text-lg font-medium text-on-surface">Personal Vault</h1>
-              <p className="text-xs text-on-surface-variant">Your notes and files</p>
+              <p className="text-xs text-on-surface-variant">Your memory, in your own files</p>
             </div>
           </div>
 
@@ -45,7 +52,10 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
             <Search className="w-4 h-4 text-on-surface-variant mr-2 flex-shrink-0" />
             <input
               type="text"
-              placeholder="Search in vault..."
+              data-vault-search
+              placeholder={searchLabel}
+              aria-label={searchLabel}
+              title={currentView === 'files' || currentView === 'browse' ? 'Search all files in your Vault' : searchLabel}
               className="bg-transparent border-none outline-none w-full text-sm text-on-surface placeholder-on-surface-variant"
               value={searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
@@ -64,23 +74,15 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          {/* Mobile search button */}
-          <button
-            className="p-2 rounded-lg hover:bg-surface-variant md:hidden"
-            title="Search"
-          >
-            <Search className="w-4 h-4 text-on-surface-variant" />
-          </button>
-
-          {/* Primary action: the one thing a note app should always offer. */}
+          {/* Save something to the user's own memory. */}
           {onNewNote && (
             <button
               onClick={onNewNote}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
-              title="New note"
+              title="Add to memory"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New note</span>
+              <span className="hidden sm:inline">Add to memory</span>
             </button>
           )}
 
@@ -110,7 +112,10 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
                   </button>
                 )}
                 {importMessage && <p role="status" className="mt-2 text-xs text-on-surface-variant">{importMessage}</p>}
-                <p className="mt-2 text-xs text-on-surface-variant">Your notes stay in your own folder, with no account and no cloud.</p>
+                {onOpenFolder && <button role="menuitem" onClick={() => { setSettingsOpen(false); onOpenFolder(); }} className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-hover"><FolderOpen className="h-4 w-4" /> Open folder</button>}
+                {onChooseFolder && <button role="menuitem" onClick={() => { setSettingsOpen(false); onChooseFolder(); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-hover">Choose another folder…</button>}
+                {desktopMessage && <p role="status" className="mt-2 text-xs text-on-surface-variant">{desktopMessage}</p>}
+                <p className="mt-2 text-xs text-on-surface-variant">Files stay in the folder you choose. AI connections are optional.</p>
               </div>
             )}
           </div>
@@ -123,7 +128,10 @@ export default function TopAppBar({ searchQuery, onSearchQueryChange, onNewNote,
           <Search className="w-4 h-4 text-on-surface-variant mr-2 flex-shrink-0" />
           <input
             type="text"
-            placeholder="Search in vault..."
+            data-vault-search
+            placeholder={searchLabel}
+            aria-label={searchLabel}
+            title={currentView === 'files' || currentView === 'browse' ? 'Search all files in your Vault' : searchLabel}
             className="bg-transparent border-none outline-none w-full text-sm text-on-surface placeholder-on-surface-variant"
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}

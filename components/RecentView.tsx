@@ -31,7 +31,7 @@ interface FileItem {
   mtime: number;
 }
 
-export default function RecentView() {
+export default function RecentView({ refreshKey = 0, onNewNote, onImportOpenAI, importBusy, importMessage }: { refreshKey?: number; onNewNote?: () => void; onImportOpenAI?: () => Promise<boolean>; importBusy?: boolean; importMessage?: string | null }) {
   const [files, setFiles] = useState<RecentFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export default function RecentView() {
 
   useEffect(() => {
     fetchRecent();
-  }, []);
+  }, [refreshKey]);
 
   const fetchFileContent = async (file: RecentFile) => {
     setContentLoading(true);
@@ -127,18 +127,8 @@ export default function RecentView() {
     });
   };
 
-  const categoryConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-    raw: { label: 'Raw', icon: <FileText className="w-3.5 h-3.5" />, color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' },
-    project: { label: 'Project', icon: <BookOpen className="w-3.5 h-3.5" />, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' },
-    decision: { label: 'Decision', icon: <Zap className="w-3.5 h-3.5" />, color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/20' },
-    fact: { label: 'Fact', icon: <Brain className="w-3.5 h-3.5" />, color: 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' },
-    summary: { label: 'Summary', icon: <Sparkles className="w-3.5 h-3.5" />, color: 'text-rose-500 bg-rose-50 dark:bg-rose-900/20' },
-    index: { label: 'Index', icon: <Archive className="w-3.5 h-3.5" />, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-900/20' },
-    root: { label: 'Root', icon: <FolderOpen className="w-3.5 h-3.5" />, color: 'text-gray-500 bg-gray-50 dark:bg-gray-800' },
-    other: { label: 'Other', icon: <File className="w-3.5 h-3.5" />, color: 'text-gray-500 bg-gray-50 dark:bg-gray-800' },
-  };
-
-  const getCategory = (cat: string) => categoryConfig[cat] || categoryConfig.other;
+  // Storage folders and Assistant classifications are not everyday UI terms.
+  const memoryCategory = { label: 'Memory', icon: <FileText className="w-3.5 h-3.5" />, color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' };
 
   // Group files by time periods
   const groups: { label: string; files: RecentFile[] }[] = [];
@@ -193,7 +183,13 @@ export default function RecentView() {
         ) : files.length === 0 ? (
           <div className="p-8 text-center">
             <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-on-surface-variant">No recent files found</p>
+            <h2 className="text-lg font-medium text-on-surface">Your space is ready</h2>
+            <p className="mt-2 text-sm text-on-surface-variant">Write something you want to remember, or bring in your ChatGPT conversations.</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              {onNewNote && <button onClick={onNewNote} className="rounded-xl bg-primary px-4 py-2 text-white">Add your first memory</button>}
+              {onImportOpenAI && <button data-onboarding-import onClick={() => void onImportOpenAI()} disabled={importBusy} className="rounded-xl border border-border px-4 py-2">{importBusy ? 'Importing…' : 'Import ChatGPT conversations'}</button>}
+            </div>
+            {importMessage && <p role="status" className="mt-4 text-sm text-on-surface-variant">{importMessage}</p>}
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -211,10 +207,14 @@ export default function RecentView() {
 
                 {/* Files */}
                 {group.files.map((file) => {
-                  const cat = getCategory(file.category);
+                  const cat = memoryCategory;
                   return (
                     <div
                       key={file.relativePath}
+                      data-recent-path={file.relativePath}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleFileClick(file); } }}
                       className="px-4 py-2.5 hover:bg-hover cursor-pointer transition-colors flex items-start"
                       onClick={() => handleFileClick(file)}
                     >
@@ -237,14 +237,9 @@ export default function RecentView() {
                               title={file.metadataError}
                               className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200"
                             >
-                              Metadata
+                              Needs attention
                             </span>
                           )}
-                        </div>
-                        <div className="flex items-center space-x-2 mt-0.5">
-                          <span className="text-[11px] text-on-surface-variant font-mono truncate">
-                            {file.relativePath}
-                          </span>
                         </div>
                         {file.preview && (
                           <p className="text-xs text-on-surface-variant mt-1 line-clamp-2 leading-relaxed">

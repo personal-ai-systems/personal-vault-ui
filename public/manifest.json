@@ -1,7 +1,7 @@
 {
   "name": "Personal Vault",
   "short_name": "Vault",
-  "description": "Google Material Design file browser for personal vault",
+  "description": "Your memory, in files you own. Independent of any assistant or AI provider.",
   "theme_color": "#1976d2",
   "background_color": "#ffffff",
   "display": "standalone",

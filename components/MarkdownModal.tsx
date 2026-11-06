@@ -92,7 +92,7 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
         <div 
           role="dialog"
           aria-modal="true"
-          aria-label="Note preview"
+          aria-label="Memory preview"
           className="bg-surface dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -103,8 +103,9 @@ export default function MarkdownModal({ file, content, loading, onClose }: Markd
                 {file.name}
               </h2>
               <p className="text-xs text-on-surface-variant dark:text-gray-400 mt-0.5 truncate">
-                {file.relativePath} • {formatDate(file.mtime)} • {(file.size / 1024).toFixed(1)} KB
+                {formatDate(file.mtime)} • {(file.size / 1024).toFixed(1)} KB
               </p>
+              <details className="mt-1 text-xs text-on-surface-variant"><summary className="cursor-pointer">File details</summary><p className="break-all font-mono">{file.relativePath}</p></details>
             </div>
             
             <div className="flex items-center space-x-2 ml-4">

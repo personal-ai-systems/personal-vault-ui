@@ -4,6 +4,32 @@ Status: **public early preview**, not a production release. Vault and UI source
 repositories are public. New archives require tests and separate publication;
 local preparation does not update an existing GitHub download.
 
+## Prepared local-client connection correction — 30 October 2026
+
+Not published and not installed on a second Mac. `Personal Vault → Connect Codex…`
+copies a registration command for a bundled stdio relay; the command itself
+contains no secret and does not mutate Codex configuration until executed.
+The app writes its rotating loopback endpoint/token to a mode-0600 connection file
+in Application Support and removes it on normal quit. The relay rereads that file
+per request and forwards calls to the app-owned MCP server, with no file-operation
+fallback. It adds save/readback guidance to MCP initialization instructions.
+
+The launcher now passes `MCP_SERVICE_TOKENS` and disables loopback authentication
+bypass. Previously it passed only `PERSONAL_VAULT_TOKEN`, which the pinned 0.6.1
+server ignores. Do not expose published preview.3 through a tunnel as if that
+token protected it. Public loopback readiness metadata remains available.
+
+`npm run test:mcp-bridge`, `npm test`, `PERSONAL_VAULT_ALLOW_DIRTY=1 npm run desktop:pack`
+and the full packaged `npm run test:desktop` passed. The dirty-Vault override was
+limited to documentation edits: packaged Vault code remains the pinned `115c249`.
+The packaged test invokes the relay through the bundled executable, verifies
+tool discovery plus capture/read, rejects an unauthenticated MCP call, checks
+connection-file permissions, and verifies the post-launch bundle signature.
+No real Vault or Codex configuration was changed. Actual second-Mac and ChatGPT
+web acceptance, release publication and secure remote setup remain pending.
+
+See [the connection guide](../../personal-vault/docs/connecting-ai-clients.md).
+
 ## Preview.3 candidate — 26 October 2026
 
 `0.2.1-preview.3` fixes non-text metadata titles crashing Recent and adds the
@@ -171,26 +197,47 @@ npm run desktop:build
 
 ## Install (tester)
 
-Open the DMG, drag Personal Vault to Applications. **Because this build is not Developer ID signed or notarized, do not double-click it the first time.** Instead:
+Open the DMG and drag Personal Vault to Applications. For an upgrade, save notes,
+quit the app and any attached Codex session, then choose **Replace** in Finder.
+Do not delete the old app first, keep duplicate installed copies, use an app
+cleaner, or remove the selected Vault or Library settings. Launch the installed
+copy after ejecting the DMG, verify About and the selected folder, then reconnect
+Codex. With stable app identity, userData location and install path, the existing
+settings and bridge command should remain usable; second-Mac upgrade acceptance
+must still verify this rather than assume it.
 
-1. Open **Finder** → **Applications**.
-2. **Right-click (or Control-click)** on **Personal Vault** and choose **Open**.
-3. In the security dialog click **Open**. The app will launch and this warning will not appear again for this copy.
+The preview is ad-hoc signed, not Developer ID signed or notarized. A newly
+downloaded build can be blocked again regardless of whether Finder replaced the
+previous copy. If macOS blocks a trusted preview after a launch attempt, use its
+supported **System Settings → Privacy & Security → Open Anyway** flow. If that
+option is unavailable, report the exact message; do not strip quarantine or
+disable Gatekeeper. Manual approval is not a notarization or update strategy.
 
-Alternative methods if the above does not appear:
-
-- **System Settings → Privacy & Security**, scroll down to the **Security** section, and click **"Open Anyway"** next to the Personal Vault block.
-- From **Terminal**:
-  ```sh
-  xattr -d com.apple.quarantine "/Applications/Personal Vault.app"
-  ```
-  Then double-click the app normally.
-
-Select a NEW empty test folder first. Node, Terminal, MCP clients and developer checkouts are not needed at runtime.
+For a first install, select a NEW empty test folder. For an upgrade, retain the
+existing folder; if prompted, open that folder rather than creating a duplicate.
+Node and developer checkouts are not required to browse the Vault. Configuring
+Codex separately requires a compatible local MCP client.
 
 > Do not ask testers to disable Gatekeeper globally (`spctl --master-disable`).
 > The preview is not Developer ID signed or notarized. Testers may encounter
 > warnings; never describe the manual workaround as equivalent to notarization.
+
+### Developer-side update path
+
+First distribute Developer ID Application-signed and Apple-notarized builds,
+including stapled tickets. Keep app identity and settings locations stable.
+Then implement a supported Electron update flow with a trusted HTTPS feed,
+distinct release versions, verified update artifacts and explicit save/restart
+behavior. The Electron autoUpdater requires a signed macOS app. There is no
+auto-updater configured in the current package or main process, and a custom
+unsigned self-replacement script is not a substitute for trusted distribution.
+
+Acceptance must include an old-to-new upgrade from a browser-downloaded release
+on another Mac, preserved Vault bytes/settings, retained Codex MCP registration,
+and rejection of an invalid update. A local ad-hoc build or passing file test
+does not establish Gatekeeper acceptance. See
+[Apple's distribution guidance](https://developer.apple.com/developer-id/) and
+[Electron's macOS update requirements](https://www.electronjs.org/docs/latest/api/auto-updater#macos).
 
 ## Verification
 

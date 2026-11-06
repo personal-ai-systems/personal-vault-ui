@@ -5,7 +5,9 @@ const path = require('node:path');
 const net = require('node:net');
 const { pathToFileURL } = require('node:url');
 const { randomBytes } = require('node:crypto');
+const { publishConnection, removeConnection, codexCommand } = require('./mcp-connection.cjs');
 let window, children = [], quitting = false, vaultRoot;
+let connectionFile;
 const token = randomBytes(32).toString('hex');
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 // The Vault is installed as a real npm dependency, pinned by
@@ -79,7 +81,7 @@ async function configureAboutPanel() {
     applicationName: 'Personal Vault',
     applicationVersion: app.getVersion(),
     version: builtAt ? `Built ${builtAt.slice(0, 10)}` : '',
-    copyright: 'Your notes stay in your own folder.',
+    copyright: 'Your memory stays in your own folder.',
   });
 }
 
@@ -122,8 +124,8 @@ async function firstRunVault() {
   for (;;) {
     const choice = await ask({
       type: 'info', title: 'Personal Vault',
-      message: 'Your notes and files, in your own folder.',
-      detail: 'Open them here, in Finder, or in any Markdown editor.',
+      message: 'Your memory, in files you own.',
+      detail: 'Open them here, in your file manager, or in any text editor.',
       buttons: ['Create a new Vault', 'Open an existing folder', 'Quit'], defaultId: 0, cancelId: 2, noLink: true,
     });
     if (choice.response === 2) return null;
@@ -136,7 +138,7 @@ async function chooseAnotherVault() {
     const choice = await ask({
       type: 'question', title: 'Personal Vault',
       message: 'Open another Vault?',
-      detail: 'Your current Vault stays open if you cancel. Notes are never moved between folders.',
+      detail: 'Your current Vault stays open if you cancel. Your files are never moved between folders.',
       buttons: ['Open an existing folder', 'Create a new Vault', 'Cancel'], defaultId: 0, cancelId: 2, noLink: true,
     });
     if (choice.response === 2) return null;
@@ -253,8 +255,9 @@ async function boot() {
   const backendPort=await port(),uiPort=await port();
   const backendURL=`http://127.0.0.1:${backendPort}`;
   const uiURL=`http://127.0.0.1:${uiPort}`;
-  start(path.join(vaultPackageDir(resources),'mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token});
+  start(path.join(vaultPackageDir(resources),'mcp','personal-vault-server.mjs'),{PERSONAL_VAULT_ROOT:root,MCP_HOST:'127.0.0.1',MCP_PORT:String(backendPort),PERSONAL_VAULT_TOKEN:token,MCP_SERVICE_TOKENS:token,MCP_GOOGLE_AUTH:'false',MCP_TRUST_LOCALHOST:'false',MCP_AUTH_CHALLENGE_MODE:'http-401',MCP_CONTEXT_FILE:''});
   await ready(backendURL+'/status',{Authorization:`Bearer ${token}`});
+  connectionFile = await publishConnection(app.getPath('userData'), { url: backendURL+'/mcp', token, root, pid: process.pid });
   start(path.join(webRuntime,'server.js'),{NODE_ENV:'production',HOSTNAME:'127.0.0.1',PORT:String(uiPort),PERSONAL_VAULT_ROOT:root,PERSONAL_VAULT_MCP_URL:backendURL+'/mcp',PERSONAL_VAULT_APP_VERSION:app.getVersion(),PERSONAL_VAULT_TOKEN:token,PERSONAL_VAULT_UI_TOKEN:token,NEXT_TELEMETRY_DISABLED:'1'},onWebServerMessage);
   await ready(uiURL+'/api/files',{'x-vault-desktop-token':token});
   window=new BrowserWindow({width:1200,height:850,show:!process.env.PV_DESKTOP_SMOKE_ROOT || process.env.PV_DESKTOP_SMOKE_SHOW === '1',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
@@ -266,17 +269,21 @@ async function boot() {
   window.webContents.setWindowOpenHandler(({url})=>{openWebLink(url);return {action:'deny'};});
   window.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==uiURL){event.preventDefault();openWebLink(url);}});
   await configureAboutPanel();
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{role:'about'},{type:'separator'},{label:'Open another Vault…',click:()=>{switchVault().catch(error=>console.error(error));}},{label:'Show Vault in Finder',click:()=>{revealVault().catch(error=>console.error(error));}},{type:'separator'},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Personal Vault',submenu:[{role:'about'},{type:'separator'},{label:'Open another Vault…',click:()=>{switchVault().catch(error=>console.error(error));}},{label:'Show Vault in Finder',click:()=>{revealVault().catch(error=>console.error(error));}},{label:'Connect Codex…',click:async()=>{
+    const command = codexCommand(process.execPath, path.join(__dirname, 'codex-mcp-bridge.cjs'), connectionFile);
+    const choice = await ask({type:'info',title:'Connect Codex',message:'Connect Codex to this Vault through MCP.',detail:`Run this command in Terminal, then start a new Codex conversation. Keep Personal Vault open. This does not connect ChatGPT on the web or archive chats automatically.\n\n${command}`,buttons:['Copy command','Cancel'],defaultId:0,cancelId:1,noLink:true});
+    if(choice.response===0)require('electron').clipboard.writeText(command);
+  }},{type:'separator'},{role:'quit'}]},{role:'editMenu'},{role:'viewMenu'}]));
   await window.loadURL(uiURL);
   if(process.env.PV_DESKTOP_SMOKE_ROOT){
     const assert=require('node:assert/strict');
     for(let attempt=0;attempt<100;attempt++){
-      const ready=await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).some(button=>button.textContent.includes('1. Import OpenAI data'))`);
+      const ready=await window.webContents.executeJavaScript(`Boolean(document.querySelector('[data-onboarding-import]')) || Array.from(document.querySelectorAll('button')).some(button=>button.textContent.includes('1. Import OpenAI data'))`);
       if(ready)break;
       await new Promise(resolve=>setTimeout(resolve,50));
     }
-    const importFirst=await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).some(button=>button.textContent.includes('1. Import OpenAI data'))`);
-    assert.equal(importFirst,true,'The empty Vault did not show OpenAI import as its first action.');
+    const importFirst=await window.webContents.executeJavaScript(`Boolean(document.querySelector('[data-onboarding-import]')) || Array.from(document.querySelectorAll('button')).some(button=>button.textContent.includes('1. Import OpenAI data'))`);
+    assert.equal(importFirst,true,'The empty Vault did not offer conversation import.');
     const preloadImport=await window.webContents.executeJavaScript(`typeof window.personalVault?.importOpenAI`);
     assert.equal(preloadImport,'function','The packaged renderer cannot reach the native OpenAI importer.');
     if(process.env.PV_DESKTOP_SMOKE_ONBOARDING_SCREENSHOT){
@@ -301,6 +308,24 @@ async function boot() {
     const backendStatusBody=await backendStatus.json();
     assert.equal(backendStatusBody.status,'ok');
     assert.equal(backendStatusBody.server,'personal-vault');
+    assert.equal((await fetch(backendURL+'/mcp',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})})).status,401);
+    assert.equal((await fs.stat(connectionFile)).mode & 0o077,0);
+    const connectionMenu = Menu.getApplicationMenu().items[0].submenu.items.find(item=>item.label==='Connect Codex…');
+    assert.ok(connectionMenu,'The Connect Codex menu is absent.');
+    const packagePaths = { paths: [path.join(resources, 'vault')] };
+    const { Client } = require(require.resolve('@modelcontextprotocol/sdk/client/index.js', packagePaths));
+    const { StdioClientTransport } = require(require.resolve('@modelcontextprotocol/sdk/client/stdio.js', packagePaths));
+    const bridgeClient = new Client({ name:'packaged-codex-bridge-test',version:'1.0.0' });
+    try {
+      await bridgeClient.connect(new StdioClientTransport({command:process.execPath,args:[path.join(__dirname,'codex-mcp-bridge.cjs'),connectionFile],env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},stderr:'pipe'}));
+      const bridgeTools = await bridgeClient.listTools();
+      assert.ok(bridgeTools.tools.some(tool=>tool.name==='capture_note'));
+      const bridgeSaved = await bridgeClient.callTool({name:'capture_note',arguments:{title:'Packaged MCP connection',input:'MCP-bridge-7429'}});
+      assert.ok(bridgeSaved.structuredContent?.path);
+      const bridgeRead = await bridgeClient.callTool({name:'vault_files_read',arguments:{path:bridgeSaved.structuredContent.path}});
+      assert.match(bridgeRead.structuredContent.content,/MCP-bridge-7429/);
+      console.log('DESKTOP_CODEX_BRIDGE_OK: bundled runtime, tools, capture/read round trip and protected backend');
+    } finally { await bridgeClient.close(); }
     assert.equal((await fetch(uiURL+'/api/today',{headers:{'x-vault-desktop-token':token}})).status,404);
     assert.equal((await fetch(uiURL+'/api/vault-info')).status,401);
     const info=await fetch(uiURL+'/api/vault-info',{headers:{'x-vault-desktop-token':token}}).then(r=>r.json());
@@ -322,16 +347,16 @@ async function boot() {
     assert.equal(search.results[0].relativePath,file);
     const title=await window.webContents.executeJavaScript('document.title');
     assert.equal(title,'Personal Vault');
-    const newNoteButton=await window.webContents.executeJavaScript(`Boolean(document.querySelector('button[title="New note"]'))`);
+    const newNoteButton=await window.webContents.executeJavaScript(`Boolean(document.querySelector('button[title="Add to memory"]'))`);
     assert.equal(newNoteButton,true);
-    await window.webContents.executeJavaScript(`document.querySelector('button[title="New note"]').click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('button[title="Add to memory"]').click()`);
     await new Promise(resolve=>setTimeout(resolve,100));
     const newNoteDialog=await window.webContents.executeJavaScript(`(() => {
-      const dialog=document.querySelector('[role="dialog"][aria-label="New note"]');
+      const dialog=document.querySelector('[role="dialog"][aria-label="Add to memory"]');
       return dialog ? {width:Math.round(dialog.getBoundingClientRect().width),text:dialog.textContent} : null;
     })()`);
-    assert.ok(newNoteDialog,'The New note dialog did not open.');
-    assert.ok(newNoteDialog.width>=500,`The New note dialog collapsed to ${newNoteDialog.width}px.`);
+    assert.ok(newNoteDialog,'The Add to memory dialog did not open.');
+    assert.ok(newNoteDialog.width>=500,`The Add to memory dialog collapsed to ${newNoteDialog.width}px.`);
     assert.match(newNoteDialog.text,/Saved in .* plain Markdown file/s);
     if(process.env.PV_DESKTOP_SMOKE_SCREENSHOT){
       const screenshot=await window.webContents.capturePage();
@@ -340,7 +365,7 @@ async function boot() {
     await require('./qa-smoke.cjs')(window, { root, invoke, uiURL, backendURL, token, resources });
     console.log('DESKTOP_OPENAI_IMPORT_OK: first onboarding action and native bridge are available');
     console.log(`DESKTOP_NEW_NOTE_OK: dialog width ${newNoteDialog.width}px`);
-    console.log('DESKTOP_SMOKE_OK: packaged window, visible New note dialog, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();
+    console.log('DESKTOP_SMOKE_OK: packaged window, visible Add to memory dialog, UI -> MCP -> files, create/update/attach/search/archive/restore, auth, vault info');app.quit();
   }
 }
 if(process.env.PV_DESKTOP_SMOKE_ROOT) app.setPath('userData',path.join(process.env.PV_DESKTOP_SMOKE_ROOT,'.smoke-user-data'));
@@ -350,4 +375,4 @@ else {
   app.whenReady().then(boot).catch(error=>{console.error(error);if(!process.env.PV_DESKTOP_SMOKE_ROOT)dialog.showErrorBox('Personal Vault could not start',error.message);app.quit();});
 }
 app.on('window-all-closed',()=>app.quit());
-app.on('before-quit',()=>{quitting=true;for(const child of children)child.kill('SIGTERM');});
+app.on('before-quit',()=>{quitting=true;removeConnection(connectionFile);for(const child of children)child.kill('SIGTERM');});

@@ -3,9 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 const fixture=await mkdtemp(path.join(tmpdir(),'personal-vault-desktop-test-'));
+const sourceMode=process.argv.includes('--source');
 const appBundle=path.resolve(process.argv[2] || 'dist/mac-arm64/Personal Vault.app');
-const executable=path.join(appBundle,'Contents/MacOS/Personal Vault');
+const executable=sourceMode ? createRequire(import.meta.url)('electron') : path.join(appBundle,'Contents/MacOS/Personal Vault');
 async function run(command,args) {
   const child=spawn(command,args,{stdio:['ignore','pipe','pipe']});
   let output='';
@@ -15,12 +18,14 @@ async function run(command,args) {
   return {code,output};
 }
 try {
-  const child=spawn(executable,[],{env:{...process.env,PV_DESKTOP_SMOKE_ROOT:fixture,PV_DESKTOP_SMOKE_SHOW:'1'},stdio:['ignore','pipe','pipe']});
+  const child=spawn(executable,sourceMode ? [fileURLToPath(new URL('..',import.meta.url))] : [],{env:{...process.env,PV_DESKTOP_SMOKE_ROOT:fixture,PV_DESKTOP_SMOKE_SHOW:'1'},stdio:['ignore','pipe','pipe']});
   let output='';child.stdout.on('data',data=>{output+=data;process.stdout.write(data);});child.stderr.on('data',data=>process.stderr.write(data));
   const timer=setTimeout(()=>child.kill('SIGTERM'),180000);
   const code=await new Promise((resolve,reject)=>{child.on('exit',resolve);child.on('error',reject);}).finally(()=>clearTimeout(timer));
   assert.equal(code,0);assert.match(output,/DESKTOP_SMOKE_OK/);
-  const signature=await run('/usr/bin/codesign',['--verify','--deep','--strict','--verbose=2',appBundle]);
-  assert.equal(signature.code,0,`The packaged app changed during its first launch:\n${signature.output}`);
-  console.log('DESKTOP_SIGNATURE_OK_AFTER_LAUNCH');
+  if (!sourceMode) {
+    const signature=await run('/usr/bin/codesign',['--verify','--deep','--strict','--verbose=2',appBundle]);
+    assert.equal(signature.code,0,`The packaged app changed during its first launch:\n${signature.output}`);
+    console.log('DESKTOP_SIGNATURE_OK_AFTER_LAUNCH');
+  } else console.log('DESKTOP_SOURCE_QA_OK: rendered source run; packaged signature acceptance is separate.');
 } finally {await rm(fixture,{recursive:true,force:true});}

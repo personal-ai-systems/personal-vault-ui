@@ -8,7 +8,7 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   const packagePaths = { paths: [path.join(resources, 'vault')] };
   const { Client } = require(require.resolve('@modelcontextprotocol/sdk/client/index.js', packagePaths));
   const { StreamableHTTPClientTransport } = require(require.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js', packagePaths));
-  const js = expression => window.webContents.executeJavaScript(expression, true);
+  const js = expression => window.webContents.executeJavaScript(expression, true).catch(error => { console.error('QA expression failed:', expression); throw error; });
   const pause = () => new Promise(resolve => setTimeout(resolve, 50));
   async function wait(expression, label) {
     for (let n = 0; n < 160; n++) { if (await js(expression)) return; await pause(); }
@@ -19,15 +19,22 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
     assert.equal(await js(`(() => { const root=document.querySelector(${JSON.stringify(selector)}); const b=root&&Array.from(root.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)}||(${JSON.stringify(selector)}==='aside'&&b.textContent.trim().startsWith(${JSON.stringify(text)}))); if(!b)return false;b.click();return true; })()`), true, `Missing button ${text}`);
   }
   async function set(selector, value) {
-    await js(`(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing input');Object.getOwnPropertyDescriptor(e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await js(`(() => {const e=Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(element=>element.getClientRects().length);if(!e)throw Error('Missing visible input');Object.getOwnPropertyDescriptor(e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  }
+  async function allFiles() {
+    await js(`document.querySelector('aside button[aria-label="Files"]').click()`);
+    await wait(`document.querySelector('aside button[aria-current="page"]')?.getAttribute('aria-label')==='Files'`, 'Files navigation');
   }
   await click('Cancel', '[role="dialog"]');
+  assert.equal(await js(`document.querySelector('aside button[aria-current="page"]')?.getAttribute('aria-label')`), 'Recent');
   await invoke('create', { path: 'qa/2024/01/older.md', content: '# Old fixture' });
   await invoke('create', { path: 'qa/2026/10/2029-old.md', content: '# Older modification' });
   await invoke('create', { path: 'qa/2026/10/2020-new.md', content: '---\ntitle: Newest fixture\n---\n# QA newest\n\n[Other note](./2029-old.md)\n\n[Website](https://example.com)\n' });
   await fs.utimes(path.join(root, 'qa/2026/10/2029-old.md'), new Date('2020-01-01'), new Date('2020-01-01'));
   await fs.utimes(path.join(root, 'qa/2026/10/2020-new.md'), new Date('2021-01-01'), new Date('2021-01-01'));
   window.webContents.reload();
+  await wait(`Boolean(document.querySelector('button[title="Settings"]'))`, 'simple home');
+  await allFiles();
   await wait(`Boolean(document.querySelector('[data-vault-folder="qa"]'))`, 'root listing');
   await wait(`Boolean(document.querySelector('button[aria-label="Expand qa"]'))`, 'folder tree');
   await js(`document.querySelector('button[aria-label="Expand qa"]').click()`);
@@ -45,30 +52,30 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   }
   assert.deepEqual(await js(`Array.from(document.querySelectorAll('[data-vault-file]')).map(e=>e.dataset.vaultFile)`), ['qa/2026/10/2020-new.md', 'qa/2026/10/2029-old.md']);
   await js(`document.querySelector('[data-vault-file="qa/2026/10/2020-new.md"]').click()`);
-  await wait(`Boolean(document.querySelector('.markdown-content a[data-vault-note]'))`, 'rendered linked note');
+  await wait(`Boolean(document.querySelector('.markdown-content a[data-vault-note]'))`, 'rendered linked memory');
   await js(`document.querySelector('.markdown-content a[data-vault-note]').click()`);
   await wait(`document.querySelector('.markdown-content')?.textContent.includes('Older modification')`, 'internal Markdown link');
 
   // A newly saved file opens even when a search is active.
-  await set('input[placeholder="Search in vault..."]', 'QA newest');
+  await set('input[data-vault-search]', 'QA newest');
   await wait(`document.body.innerText.includes('Search')`, 'search view');
-  await js(`document.querySelector('button[title="New note"]').click()`);
-  await wait(`Boolean(document.querySelector('[role="dialog"] input'))`, 'new-note dialog');
+  await js(`document.querySelector('button[title="Add to memory"]').click()`);
+  await wait(`Boolean(document.querySelector('[role="dialog"] input'))`, 'add-to-memory dialog');
   await set('[role="dialog"] input', 'qa-created.md');
   await set('[role="dialog"] textarea', '# QA-created\n\nReadable test only.');
-  await click('Save note', '[role="dialog"]');
-  await wait(`document.querySelector('.markdown-content')?.textContent.includes('QA-created')`, 'newly saved note');
+  await click('Save', '[role="dialog"]');
+  await wait(`document.querySelector('.markdown-content')?.textContent.includes('QA-created')`, 'newly saved memory');
   const createdPath = 'qa/2026/10/qa-created.md';
   assert.match(await fs.readFile(path.join(root, createdPath), 'utf8'), /Readable test only/);
-  await js(`document.querySelector('button[title="New note"]').click()`);
+  await js(`document.querySelector('button[title="Add to memory"]').click()`);
   await wait(`Boolean(document.querySelector('[role="dialog"] input'))`, 'duplicate dialog');
   await set('[role="dialog"] input', 'qa-created.md');
   await set('[role="dialog"] textarea', 'must not overwrite');
-  await click('Save note', '[role="dialog"]');
+  await click('Save', '[role="dialog"]');
   await wait(`document.querySelector('[role="alert"]')?.textContent.includes('already exists')`, 'duplicate refusal');
   assert.match(await fs.readFile(path.join(root, createdPath), 'utf8'), /Readable test only/);
   await click('Cancel', '[role="dialog"]');
-  await click('Edit note', 'section');
+  await click('Edit', 'section');
   await set('section textarea', '# QA-edited\n\nReadable test only.');
   await js('window.confirm = () => true; true');
   await click('Save changes', 'section');
@@ -80,17 +87,21 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   await wait(`Boolean(document.querySelector('.markdown-content img')?.naturalWidth)`, 'inline attachment image');
   assert.match(await fs.readFile(path.join(root, createdPath), 'utf8'), /!\[qa.png\]\(/);
   await click('Archive', 'section');
-  await wait(`Array.from(document.querySelectorAll('section button')).some(b=>b.textContent.trim()==='Restore')`, 'archived note');
+  await wait(`Array.from(document.querySelectorAll('section button')).some(b=>b.textContent.trim()==='Restore')`, 'archived memory');
   await wait(`Boolean(document.querySelector('.markdown-content img')?.naturalWidth)`, 'archived attachment');
   await click('Restore', 'section');
-  await wait(`Array.from(document.querySelectorAll('section button')).some(b=>b.textContent.trim()==='Edit note')`, 'restored note');
+  await wait(`Array.from(document.querySelectorAll('section button')).some(b=>b.textContent.trim()==='Edit')`, 'restored memory');
   assert.equal((await fs.readFile(path.join(root, createdPath.replace(/\.md$/, '.assets/qa.png')))).length > 0, true);
 
-  await set('input[placeholder="Search in vault..."]', 'QA-edited');
+  await set('input[data-vault-search]', 'QA-edited');
   await click('Recent', 'aside');
   await wait(`document.body.innerText.includes('Recent Changes') && document.body.innerText.includes('QA-edited')`, 'Recent view');
   await click('Archive', 'aside');
-  await wait(`document.body.innerText.includes('Nothing archived yet') || document.body.innerText.includes('Notes you archived')`, 'Archive view');
+  await wait(`document.body.innerText.includes('Nothing archived yet') || document.body.innerText.includes('Memories you archived')`, 'Archive view');
+  assert.equal(await js(`Array.from(document.querySelectorAll('input[data-vault-search]')).find(input=>input.getClientRects().length)?.placeholder`), 'Search in Archive');
+  await set('input[data-vault-search]', 'QA-edited');
+  await wait(`document.querySelector('main').innerText.includes('0 results for "QA-edited"')`, 'Archive search excludes the restored active memory');
+  await set('input[data-vault-search]', '');
   await js(`document.querySelector('button[title="Settings"]').click()`);
   await wait(`Boolean(document.querySelector('[role="menu"]'))`, 'Settings menu');
   assert.equal(await js(`Array.from(document.querySelectorAll('[role="menu"] button')).some(b=>b.textContent.includes('Import OpenAI'))`), true);
@@ -104,7 +115,7 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   // Independent MCP SDK client, not the renderer's existing connection.
   const client = new Client({ name: 'desktop-independent-qa', version: '1.0.0' });
   try {
-    await client.connect(new StreamableHTTPClientTransport(new URL(backendURL + '/mcp')));
+    await client.connect(new StreamableHTTPClientTransport(new URL(backendURL + '/mcp'), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
     const tools = await client.listTools();
     assert.ok(tools.tools.some(t => t.name === 'vault_files_read_binary'));
     const read = await client.callTool({ name: 'vault_files_read', arguments: { path: createdPath } });
@@ -121,10 +132,11 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   const search = await fetch(uiURL + '/api/search?q=QA-edited', { headers: { 'x-vault-desktop-token': token } }).then(r => r.json());
   assert.equal(Number.isFinite(search.results[0].mtime), true);
 
-  await set('input[placeholder="Search in vault..."]', 'QA newest');
+  await click('Memory', 'aside');
+  await set('input[data-vault-search]', 'QA newest');
   await wait(`Array.from(document.querySelectorAll('main button')).some(b=>b.textContent.includes('Newest fixture'))`, 'search result');
   await js(`Array.from(document.querySelectorAll('main button')).find(b=>b.textContent.includes('Newest fixture')).click()`);
-  await wait(`Boolean(document.querySelector('[aria-label="Note preview"] .markdown-content'))`, 'search preview');
+  await wait(`Boolean(document.querySelector('[aria-label="Memory preview"] .markdown-content'))`, 'search preview');
   const downloadedPath = path.join(root, 'qa-downloaded.md');
   const download = new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Download did not complete')), 8000);
@@ -139,7 +151,7 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   await js(`Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:text=>{window.__qaCopy=text;return Promise.resolve()}});true`);
   await js(`document.querySelector('button[title="Copy content"]').click()`);
   assert.equal(await js('window.__qaCopy'), await fs.readFile(downloadedPath, 'utf8'));
-  await js(`delete navigator.clipboard.writeText; document.querySelector('[aria-label="Note preview"] button[title="Close"]').click(); true`);
+  await js(`delete navigator.clipboard.writeText; document.querySelector('[aria-label="Memory preview"] button[title="Close"]').click(); true`);
 
   // Optional metadata is never allowed to blank Recent or hide the original.
   const malformedPath = 'qa/2026/10/ошибка-метаданных.md';
@@ -164,19 +176,20 @@ module.exports = async (window, { root, invoke, uiURL, backendURL, token, resour
   for (const [name] of unusualTitles) assert.equal(recent.files.find(f => f.name === name)?.title, name);
   assert.ok(recent.files.find(f => f.name === 'ошибка-метаданных.md')?.metadataError);
   assert.equal(await js(`document.body.innerText.includes('[object Object]')`), false);
-  assert.equal(await js(`(() => {const row=Array.from(document.querySelectorAll('main div.cursor-pointer')).find(e=>e.textContent.includes(${JSON.stringify(malformedPath)}));if(!row)return false;row.click();return true;})()`), true);
-  await wait(`Boolean(document.querySelector('[aria-label="Note preview"] pre.whitespace-pre-wrap'))`, 'Recent raw-text preview');
-  assert.equal(await js(`document.querySelector('[aria-label="Note preview"] pre').textContent`), malformedSource);
-  await js(`document.querySelector('[aria-label="Note preview"] button[title="Close"]').click();true`);
-  await set('input[placeholder="Search in vault..."]', 'Metadata regression fixture');
+  assert.equal(await js(`(() => {const row=document.querySelector('[data-recent-path=${JSON.stringify(malformedPath)}]');if(!row)return false;row.click();return true;})()`), true);
+  await wait(`Boolean(document.querySelector('[aria-label="Memory preview"] pre.whitespace-pre-wrap'))`, 'Recent raw-text preview');
+  assert.equal(await js(`document.querySelector('[aria-label="Memory preview"] pre').textContent`), malformedSource);
+  await js(`document.querySelector('[aria-label="Memory preview"] button[title="Close"]').click();true`);
+  await set('input[data-vault-search]', 'Metadata regression fixture');
   await wait(`Array.from(document.querySelectorAll('main button')).some(b=>b.textContent.includes('object-title.md'))`, 'search falls back to a readable filename');
   assert.equal(await js(`document.body.innerText.includes('[object Object]')`), false);
-  await set('input[placeholder="Search in vault..."]', '');
-  console.log('DESKTOP_METADATA_QA_OK: Recent and search survive object/array/number/empty titles; malformed Cyrillic/emoji/CRLF/BOM notes open raw with warnings in folder and Recent; original bytes unchanged.');
+  await set('input[data-vault-search]', '');
+  console.log('DESKTOP_METADATA_QA_OK: Recent and search survive object/array/number/empty titles; malformed Cyrillic/emoji/CRLF/BOM memories open raw with warnings in folder and Recent; original bytes unchanged.');
 
-  // End on the fixture note so a captured image shows the checked UI state.
+  // End on the fixture memory so a captured image shows the checked UI state.
   await js(`window.dispatchEvent(new CustomEvent('vault:open-note',{detail:${JSON.stringify(createdPath)}}))`);
-  await wait(`Boolean(document.querySelector('.markdown-content img')?.naturalWidth)`, 'final note preview');
+  await wait(`Boolean(document.querySelector('.markdown-content img')?.naturalWidth)`, 'final memory preview');
   if (process.env.PV_DESKTOP_QA_SCREENSHOT) await fs.writeFile(process.env.PV_DESKTOP_QA_SCREENSHOT, (await window.webContents.capturePage()).toPNG());
-  console.log('DESKTOP_QA_OK: rendered controls — newest-first list/tree, linked note, create during search, duplicate refusal, edit/save, image attachment, archive/restore, Recent/Archive/Settings, original Markdown download, copy payload (clipboard stub); independent MCP read, protected binary preview and rejected foreign Origin.');
+  await require('./simple-ui-qa.cjs')(window, { root, invoke, uiURL, token });
+  console.log('DESKTOP_QA_OK: rendered controls — newest-first list/tree, linked memory, create during search, duplicate refusal, edit/save, image attachment, archive/restore, Recent/Archive/Settings, original Markdown download, copy payload (clipboard stub); independent MCP read, protected binary preview and rejected foreign Origin.');
 };

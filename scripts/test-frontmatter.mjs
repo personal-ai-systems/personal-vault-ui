@@ -114,7 +114,7 @@ assert.equal(mixed.length, 3);
 assert.equal(mixed.filter((entry) => entry.ok).length, 2, 'the other notes still load');
 const failed = mixed.find((entry) => entry.path === 'missing.md');
 assert.equal(failed.ok, false);
-assert.equal(failed.error, 'This note could not be read.');
+assert.equal(failed.error, 'This memory could not be read.');
 assert.doesNotMatch(failed.error, /ENOENT|no such file/, 'no raw I/O error text is shown');
 
 console.log('FRONTMATTER_OK: colon-space, prose colons, Russian, emoji, CRLF, BOM, unclosed fence, body rules, valid metadata and batch isolation.');

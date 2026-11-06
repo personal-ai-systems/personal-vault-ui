@@ -102,7 +102,7 @@ echo "8) legacy Assistant routes stay blocked"
 
 echo "9) rendered page contains the new copy and no account chrome"
 PAGE="$(curl -s -H "$H" "$B/")"
-[[ "$PAGE" == *"Your notes and files"* ]] || fail "subtitle copy"
+[[ "$PAGE" == *"Your memory, in your own files"* ]] || fail "subtitle copy"
 [[ "$PAGE" == *"Kirill"* ]] && fail "hardcoded user name still rendered"
 [[ "$PAGE" == *"Local-first AI memory system"* ]] && fail "old subtitle still rendered"
 

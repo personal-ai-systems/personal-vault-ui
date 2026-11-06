@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Personal Vault",
-  description: "Google Material Design file browser for personal vault",
+  description: "Your memory, in files you own. Independent of any assistant or AI provider.",
   manifest: "/manifest.json",
   themeColor: "#1976d2",
   appleWebApp: {

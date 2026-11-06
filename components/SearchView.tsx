@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Search, Loader2, AlertCircle } from 'lucide-react';
 import MarkdownModal from './MarkdownModal';
 
@@ -20,42 +20,52 @@ interface SearchResult {
 
 interface SearchViewProps {
   query: string;
+  scope: 'recent' | 'memory' | 'all' | 'archive' | 'deleted';
 }
 
-export default function SearchView({ query }: SearchViewProps) {
+export default function SearchView({ query, scope }: SearchViewProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<SearchResult | null>(null);
   const [fileContent, setFileContent] = useState<any>(null);
   const [contentLoading, setContentLoading] = useState(false);
+  const contentRequest = useRef<AbortController | null>(null);
+  const section = { recent: 'Recent', memory: 'Memory', all: 'Files', archive: 'Archive', deleted: 'Recently Deleted' }[scope];
 
   const trimmedQuery = query.trim();
 
   useEffect(() => {
+    contentRequest.current?.abort();
+    setSelectedFile(null);
+    setFileContent(null);
+    setResults([]);
+    setWarning(null);
+    setError(null);
     if (!trimmedQuery) {
-      setResults([]);
-      setError(null);
+      setLoading(false);
       return;
     }
 
     const controller = new AbortController();
+    setLoading(true);
     const timeout = window.setTimeout(async () => {
-      setLoading(true);
-      setError(null);
       try {
-        const params = new URLSearchParams({ q: trimmedQuery, limit: '50' });
+        const params = new URLSearchParams({ q: trimmedQuery, scope });
         const response = await fetch(`/api/search?${params}`, { signal: controller.signal });
         const data = await response.json();
-        if (data.error) {
-          setError(data.error);
+        if (controller.signal.aborted) return;
+        if (!response.ok || data.error) {
+          setError(data.error || `Could not search ${section}.`);
           setResults([]);
         } else {
           setResults(data.results || []);
+          setWarning([data.listingWarning, data.searchWarning].filter(Boolean).join(' ') || null);
         }
       } catch (err) {
         if (!controller.signal.aborted) {
-          setError('Failed to search the vault');
+          setError(`Could not search ${section}. Please try again.`);
           setResults([]);
           console.error(err);
         }
@@ -69,21 +79,31 @@ export default function SearchView({ query }: SearchViewProps) {
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
+      contentRequest.current?.abort();
     };
-  }, [trimmedQuery]);
+  }, [trimmedQuery, scope, section]);
 
   const summary = useMemo(() => {
-    if (!trimmedQuery) return 'Type to search the vault.';
+    if (!trimmedQuery) return `Type to search ${section}.`;
     if (loading) return `Searching for "${trimmedQuery}"...`;
     return `${results.length} result${results.length === 1 ? '' : 's'} for "${trimmedQuery}"`;
-  }, [loading, results.length, trimmedQuery]);
+  }, [loading, results.length, trimmedQuery, section]);
 
   const fetchFileContent = async (file: SearchResult) => {
+    contentRequest.current?.abort();
+    if (!/\.(md|txt|json|jsonl|csv|ya?ml)$/i.test(file.relativePath)) {
+      window.dispatchEvent(new CustomEvent('vault:open-note', { detail: file.relativePath }));
+      return;
+    }
     setSelectedFile(file);
+    setFileContent(null);
     setContentLoading(true);
+    const controller = new AbortController();
+    contentRequest.current = controller;
     try {
-      const response = await fetch(`/api/content/${encodeURIComponent(file.relativePath)}`);
+      const response = await fetch(`/api/content/${encodeURIComponent(file.relativePath)}`, { signal: controller.signal });
       const data = await response.json();
+      if (controller.signal.aborted) return;
       if (data.error) {
         setFileContent({
           path: file.relativePath,
@@ -94,6 +114,7 @@ export default function SearchView({ query }: SearchViewProps) {
         setFileContent(data);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error('Failed to fetch search result content:', err);
       setFileContent({
         path: file.relativePath,
@@ -101,11 +122,12 @@ export default function SearchView({ query }: SearchViewProps) {
         content: file.content || 'Failed to load content',
       });
     } finally {
-      setContentLoading(false);
+      if (!controller.signal.aborted) setContentLoading(false);
     }
   };
 
   const closeModal = () => {
+    contentRequest.current?.abort();
     setSelectedFile(null);
     setFileContent(null);
   };
@@ -115,16 +137,18 @@ export default function SearchView({ query }: SearchViewProps) {
       <div className="px-4 py-2 border-b border-border bg-surface-variant/50 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Search className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-medium text-on-surface">Search</h2>
+          <h2 className="text-sm font-medium text-on-surface">Search in {section}</h2>
         </div>
         <span className="text-xs text-on-surface-variant">{summary}</span>
       </div>
 
       <div className="overflow-auto flex-1 min-h-0">
+        {scope === 'all' && <p className="px-4 pt-3 text-xs text-on-surface-variant">Across all folders in your Vault, not just the current folder.</p>}
+        {warning && <p role="status" className="m-4 rounded-lg border border-amber-500 p-3 text-sm">{warning}</p>}
         {loading ? (
           <div className="p-8 text-center">
             <Loader2 className="w-8 h-8 text-primary mx-auto animate-spin" />
-            <p className="mt-2 text-sm text-on-surface-variant">Searching vault...</p>
+            <p className="mt-2 text-sm text-on-surface-variant">Searching {section}…</p>
           </div>
         ) : error ? (
           <div className="p-8 text-center">
@@ -134,13 +158,14 @@ export default function SearchView({ query }: SearchViewProps) {
         ) : results.length === 0 ? (
           <div className="p-8 text-center">
             <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-on-surface-variant">No matching vault files found</p>
+            <p className="text-on-surface-variant">No matches in {section}</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
             {results.map((file) => (
               <button
                 key={file.relativePath}
+                data-search-path={file.relativePath}
                 type="button"
                 className="w-full px-4 py-3 hover:bg-hover transition-colors flex items-start text-left"
                 onClick={() => fetchFileContent(file)}
@@ -160,13 +185,12 @@ export default function SearchView({ query }: SearchViewProps) {
                         title={file.metadataError}
                         className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200"
                       >
-                        Metadata
+                        Needs attention
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-on-surface-variant font-mono truncate mt-0.5">
-                    {file.relativePath}
-                  </div>
+                  {scope === 'all' && <p className="mt-1 break-all text-xs text-on-surface-variant">{file.relativePath}</p>}
+                  <div className="text-xs text-on-surface-variant mt-0.5">{file.size ? `${Math.max(1, Math.round(file.size / 1024))} KB` : 'Saved memory'}</div>
                   <p className="text-xs text-on-surface-variant mt-1 line-clamp-2 leading-relaxed">
                     {file.content}
                   </p>
