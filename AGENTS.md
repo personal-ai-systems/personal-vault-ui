@@ -7,6 +7,13 @@ before architecture or positioning changes. This client is not Personal
 Assistant, a daily dashboard or an agent runtime. Saved memory stays in ordinary
 Markdown and attachments in the selected folder; headers are optional.
 
+## MVP language
+The default interface and all public documentation are in English. Additional
+interface translations are deferred. Preserve user filenames, memory, archives
+and index content in their original language; do not translate stored data or
+infer a user's language profile from their messages. Keep multilingual and
+Unicode preservation tests. See the shared product boundary for this decision.
+
 ## Architecture
 - **Storage**: `~/personal-vault/raw/YYYY/MM/YYYY-MM-DD-topic.md`
 - **Frontend**: Next.js 16 (App Router) + TypeScript

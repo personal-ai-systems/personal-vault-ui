@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { newestFirst, folderOrder } from '../lib/file-order.mjs';
 import { recentFiles } from '../lib/recent-files.mjs';
 import { vaultLink } from '../lib/vault-links.mjs';
@@ -21,4 +22,7 @@ assert.deepEqual(vaultLink('./note.assets/pic.png', 'raw/note.md'), { kind: 'ass
 assert.deepEqual(vaultLink('../other.md', 'raw/2026/note.md'), { kind: 'note', path: 'raw/other.md' });
 assert.equal(vaultLink('javascript:alert(1)', 'raw/note.md').kind, 'blocked');
 assert.equal(vaultLink('https://example.com', 'raw/note.md').kind, 'external');
+const library = await readFile(new URL('../components/LibraryView.tsx', import.meta.url), 'utf8');
+assert.equal((library.match(/toLocaleDateString\('en-AU'/g) || []).length, 2);
+assert.doesNotMatch(library, /toLocaleDateString\((?:undefined\s*[,)]|\s*\))/);
 console.log('UI_RULES_OK: newest-first files/calendar folders, 1800-note Recent scan, visible failures and relative/safe links.');

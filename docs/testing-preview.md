@@ -41,12 +41,17 @@ web section below is optional and is not a prerequisite for local Codex.
 
 ## The first ten checks
 
+For the language-preservation check, choose a short disposable title and sentence
+containing non-Latin characters from any writing system, plus punctuation and an
+emoji. Keep the exact sentence for the later search check. Repeat with another
+writing system where possible; no particular language is required.
+
 | Check | What to do | Expected result |
 | --- | --- | --- |
 | 1. Your folder | Open the Vault location menu in the sidebar and choose Show in Finder. | Finder opens the exact folder shown in the app. Your notes are not hidden inside the application. |
-| 2. Any language | Choose New note. Name it `Мои мысли 📝.md` and write `Планы: обсудить отпуск. Проверка-7429`. Save. | The note opens, a readable `.md` file exists in Finder, and Russian text, punctuation and emoji stay intact. |
+| 2. Any language | Choose New note. Use your test title as the filename, with a `.md` extension, and enter your test sentence. Save. | The note opens, a readable `.md` file exists in Finder, and the exact original characters, punctuation and emoji stay intact. |
 | 3. Latest first | Create a second note. Then edit and save the first one. Open Recent and the containing folder. | The most recently modified note is above the older note. No scrolling to the bottom is needed. |
-| 4. Find it | Search for `Проверка-7429`, then open the result. | The correct note and its full content appear. Clear the search to return to browsing. |
+| 4. Find it | Search for a distinctive phrase from your saved test sentence, then open the result. | The correct note and its full content appear. Clear the search to return to browsing. |
 | 5. Save safely | Try creating another note with the same filename in the same folder. | The app refuses to replace the existing note. Its original content remains. |
 | 6. Attachment | Open the first note, attach a disposable picture, and inspect its folder in Finder. | The image appears in the note; a visible sibling `.assets` folder holds the attachment. |
 | 7. Archive and restore | Archive that note, open Archive, and restore it. | The note leaves its original folder, is visible in Archive, then returns with its picture and working link. |
@@ -62,13 +67,13 @@ In the **test folder only**, create a plain-text UTF-8 file named `broken-header
 
 ```markdown
 ---
-title: Мысли: планы 📝
+title: Thoughts: plans 📝
 ---
 # The note must still open
 Nothing in this file should be silently rewritten.
 ```
 
-The header deliberately has a formatting mistake. Recent must still list all notes. Opening it from the folder or Recent must show a short warning and the complete original text, including the header. Russian and emoji are not the error.
+The header deliberately has a formatting mistake: an unquoted colon inside the title. Recent must still list all notes. Opening it from the folder or Recent must show a short warning and the complete original text, including the header. Unicode characters and emoji are not the error.
 
 Create a second file, `object-title.md`:
 
@@ -103,7 +108,9 @@ For setup, follow OpenAI's [custom MCP connection guide](https://developers.open
 
 After the connection is configured and its selected Vault has been verified, select that plugin in a new ChatGPT web conversation and ask:
 
-> Use only my Personal Vault connection. Search for Проверка-7429, read the matching file, and quote the line with its file path. If the connection is unavailable or there is no match, say so. Do not guess or change files.
+Replace `[test phrase]` below with the exact distinctive phrase used in check 4:
+
+> Use only my Personal Vault connection. Search for [test phrase], read the matching file, and quote the line with its file path. If the connection is unavailable or there is no match, say so. Do not guess or change files.
 
 Expected: an actual search and read of the test note with the exact phrase/path. Then ask about one imported conversation and compare the answer with its Markdown. A disconnected test must report unavailable, not invent a remembered answer. Do not mark this scenario passed if ChatGPT merely answers from its own chat history.
 

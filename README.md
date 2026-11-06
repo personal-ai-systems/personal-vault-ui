@@ -6,6 +6,11 @@ Personal Vault is your independent memory store. It keeps conversations, experie
 
 This repository contains the first desktop client, and the current download is a macOS Apple Silicon preview. The Personal Vault engine itself is verified on macOS, Windows and Linux. Windows/Linux installers and secure access from ChatGPT or other compatible mobile MCP clients are **coming soon**; see the [platform support and architecture](https://github.com/personal-ai-systems/personal-vault#platform-support) in the main repository.
 
+The MVP interface and documentation are in English. Your saved files, memory,
+archives and indexes can contain any language and are not translated. Additional
+interface languages may be added later; using English is not a requirement for
+your own content.
+
 ## Why use Personal Vault?
 
 - **Switch AI models without rebuilding your memory.** Your saved context lives in your folder instead of being trapped inside one provider's chat history.

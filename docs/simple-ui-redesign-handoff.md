@@ -5,6 +5,23 @@ model to continue the requested redesign. Keep the earlier
 `docs/ui-ux-qa-handoff.md`: it records a different corrective QA task and contains
 historical evidence, not the current redesign's completion status.
 
+## English MVP presentation — 7 November 2026
+
+The default UI and public documentation use English; stored files, archives and
+indexes retain their original language. Future interface localization is deferred.
+See the shared product boundary. Public test instructions and the historical
+quotation below are now in English; Unicode preservation checks remain.
+Only the two locale arguments in `components/LibraryView.tsx` changed in this
+slice, using the existing `en-AU` convention for month headings and update dates.
+Unrelated design-system edits in the working tree were preserved.
+
+The six UI test suites and production build/typecheck passed. Desktop staging
+stopped at the existing Vault dependency mismatch (`115c249e660d` pinned versus
+`ce7cb821d8c5` in the checkout); packaged acceptance was not run against a stale
+build. The language changes are prepared for a scoped source commit, not a new
+installed app. Unrelated design work remains local. External-browser review
+and packaged acceptance remain separate verification steps.
+
 ## Files and contextual search — 1 November 2026
 
 Personally tested on the installed preview.4 and accepted the current views,
@@ -136,9 +153,9 @@ accessible under the shared content rules below.
 
 ### Vocabulary confirmed by the user, 30 October
 
-The user clarified: “Это просто память, это то, что происходило. Это не нот,
-это не капча, это просто память.” This settles the ordinary content terminology;
-do not restart the earlier ambiguous dictation question or substitute Entry.
+The user clarified (translated): “It is simply memory: what happened. It is not
+a note or a capture; it is simply memory.” This settles the ordinary content
+terminology; do not restart the earlier ambiguous dictation question or substitute Entry.
 
 - Product: Personal Vault. Purpose: personal memory independent of an AI vendor,
   Assistant or dashboard. It stores what the user saved about what happened,
